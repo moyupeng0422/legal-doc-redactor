@@ -1,0 +1,2052 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>法律文件脱敏处理工具</title>
+    <script src="mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
+        .content { padding: 30px; }
+        .upload-area { border: 3px dashed #1e3c72; border-radius: 12px; padding: 40px; text-align: center; cursor: pointer; background: #f0f4ff; transition: all 0.3s; }
+        .upload-area:hover { border-color: #2a5298; background: #e8f0ff; }
+        .upload-area.dragover { background: #d8e8ff; transform: scale(1.02); }
+        #fileInput { display: none; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; margin: 5px; font-weight: 500; }
+        .btn-primary { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-secondary { background: #e8f0ff; color: #1e3c72; }
+        .action-bar { display: flex; justify-content: center; gap: 15px; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+        .stats { display: flex; gap: 20px; margin-top: 20px; padding: 15px; background: #f8f9ff; border-radius: 8px; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 24px; font-weight: bold; color: #1e3c72; }
+        .stat-label { font-size: 12px; color: #888; }
+        .panel-container { display: grid; grid-template-columns: 1fr 350px 1fr; gap: 20px; margin-top: 25px; height: 550px; }
+        .panel { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+        .panel-header { background: #f8f9fa; padding: 15px; border-bottom: 1px solid #ddd; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        .panel-content { flex: 1; overflow-y: auto; padding: 15px; background: white; }
+        .preview-text { line-height: 1.8; color: #333; white-space: pre-wrap; }
+        .redacted { background-color: #fff3cd; border-radius: 3px; padding: 2px 4px; cursor: pointer; transition: background-color 0.2s; }
+        .redacted:hover { background-color: #ffe69c; }
+        .redacted-preview { background-color: #fff3cd; padding: 2px 4px; border-radius: 3px; }
+        @keyframes orange-flash {
+            0%, 100% { background-color: #fff3cd; }
+            50% { background-color: #ff9800; }
+        }
+        .orange-flash { animation: orange-flash 0.6s ease-in-out 3; }
+        .redaction-item { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 12px; margin-bottom: 10px; font-size: 13px; }
+        .redaction-original { color: #dc3545; word-break: break-all; }
+        .redaction-replacement { color: #28a745; font-weight: 500; word-break: break-all; }
+        .redaction-location { font-size: 11px; color: #6c757d; margin-top: 4px; }
+        .redaction-actions { display: flex; gap: 5px; margin-top: 8px; }
+        .btn-xs { padding: 4px 8px; font-size: 11px; border-radius: 4px; border: none; cursor: pointer; }
+        .type-organization { background: #d4edda; color: #155724; }
+        .type-date { background: #cce5ff; color: #004085; }
+        .type-price { background: #f8d7da; color: #721c24; }
+        .type-person_name { background: #d1ecf1; color: #0c5460; }
+        .type-credit_code { background: #e2e3e5; color: #383d41; }
+        .type-org_code { background: #d6d8db; color: #383d41; }
+        .type-patent_code { background: #cfd2d6; color: #383d41; }
+        .type-file_code { background: #dee2e6; color: #383d41; }
+        .type-project_name { background: #fff3cd; color: #856404; }
+        .type-phone { background: #e0cffc; color: #6f42c1; }
+        .type-email { background: #d4edda; color: #155724; }
+        .type-address { background: #f0e68c; color: #856404; }
+        .type-id_card { background: #ffd6e8; color: #c2185b; }
+        .hidden { display: none !important; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal.show { display: flex; justify-content: center; align-items: center; }
+        .modal-content { background: white; border-radius: 12px; padding: 30px; min-width: 400px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 500; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+        .type-selector { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .type-option { padding: 10px; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; text-align: center; }
+        .type-option:hover { background: #f0f4ff; }
+        .type-option.selected { background: #1e3c72; color: white; }
+        .mode-selector { display: flex; gap: 20px; justify-content: center; margin: 30px 0; }
+        .mode-card { flex: 1; max-width: 300px; padding: 30px; border: 2px solid #e9ecef; border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .mode-card:hover { border-color: #1e3c72; transform: translateY(-4px); box-shadow: 0 8px 25px rgba(30,60,114,0.15); }
+        .mode-card.selected { border-color: #1e3c72; background: #f0f4ff; }
+        .mode-icon { font-size: 48px; margin-bottom: 15px; }
+        .mode-title { font-size: 18px; font-weight: 600; color: #1e3c72; margin-bottom: 8px; }
+        .mode-desc { font-size: 13px; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>法律文件脱敏/还原工具</h1>
+            <p>自动识别敏感信息进行脱敏，或将脱敏稿还原为原文</p>
+        </div>
+        <div class="content">
+            <!-- 模式选择界面 -->
+            <div id="modeSelector">
+                <div class="mode-selector">
+                    <div class="mode-card" onclick="app.selectMode('redact')" id="redactModeCard">
+                        <div class="mode-icon">📄</div>
+                        <div class="mode-title">脱敏模式</div>
+                        <div class="mode-desc">上传原文件，自动识别敏感信息并脱敏</div>
+                    </div>
+                    <div class="mode-card" onclick="app.selectMode('restore')" id="restoreModeCard">
+                        <div class="mode-icon">🔓</div>
+                        <div class="mode-title">还原模式</div>
+                        <div class="mode-desc">上传脱敏稿和比对词，还原为原文</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 脱敏模式界面 -->
+            <div id="redactModeUI" class="hidden">
+                <div class="upload-area" id="uploadArea">
+                    <div style="font-size: 48px;">📁</div>
+                    <div style="font-size: 16px; margin-top: 10px;">点击选择或拖拽docx文件到此处</div>
+                </div>
+                <input type="file" id="fileInput" accept=".docx">
+
+                <div id="mainContent" class="hidden">
+                    <div class="action-bar">
+                        <button class="btn btn-primary" onclick="app.identifyRedactions()">🔄 重新识别</button>
+                        <button class="btn btn-secondary" onclick="app.showAddModal()">➕ 手动添加</button>
+                        <button class="btn btn-success" onclick="app.showExportModal()">📥 导出结果</button>
+                        <button class="btn btn-secondary" onclick="app.showListModal()">📋 白名单/黑名单</button>
+                        <button class="btn btn-danger" onclick="app.reset()">🗑️ 重置</button>
+                        <label style="margin-left:15px;display:inline-flex;align-items:center;cursor:pointer;">
+                            <input type="checkbox" id="debugMode" onchange="app.toggleDebug()">
+                            <span style="margin-left:5px;">🐛 启用调试模式</span>
+                        </label>
+                    </div>
+
+                    <div class="stats">
+                        <div class="stat-item"><div class="stat-value" id="totalCount">0</div><div class="stat-label">脱敏项总数</div></div>
+                        <div class="stat-item"><div class="stat-value" id="paragraphCount">0</div><div class="stat-label">段落数</div></div>
+                    </div>
+
+                    <div id="debugPanel" class="hidden" style="background:#f8f9fa;padding:15px;margin:15px 0;border:1px solid #ddd;border-radius:8px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                            <h4 style="margin:0;">🐛 调试日志</h4>
+                            <button class="btn btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="app.exportDebugLog()">📥 导出日志</button>
+                        </div>
+                        <div id="debugLog" style="font-family:monospace;font-size:12px;max-height:400px;overflow-y:auto;background:white;padding:10px;border:1px solid #eee;white-space:pre-wrap;"></div>
+                    </div>
+
+                    <div class="panel-container">
+                        <div class="panel">
+                            <div class="panel-header"><span>📄 原文预览</span><small style="color:#6c757d;">黄色高亮为已识别内容</small></div>
+                            <div class="panel-content" id="originalPreview"></div>
+                        </div>
+                        <div class="panel">
+                            <div class="panel-header"><span>📋 脱敏项列表</span><small id="redactionCount" style="color:#6c757d;">0 项</small></div>
+                            <div class="panel-content" id="redactionList"></div>
+                        </div>
+                        <div class="panel">
+                            <div class="panel-header"><span>🔒 脱敏预览</span><small style="color:#6c757d;">替换后的效果</small></div>
+                            <div class="panel-content" id="redactedPreview"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 还原模式界面 -->
+            <div id="restoreModeUI" class="hidden">
+                <div class="upload-area" id="restoreUploadArea" style="margin-bottom: 20px;">
+                    <div style="font-size: 48px;">📁</div>
+                    <div style="font-size: 16px; margin-top: 10px;">上传脱敏稿（审核版）docx文件</div>
+                </div>
+                <input type="file" id="restoreFileInput" accept=".docx">
+
+                <div class="upload-area" id="mappingUploadArea" style="margin-bottom: 20px;">
+                    <div style="font-size: 48px;">📄</div>
+                    <div style="font-size: 16px; margin-top: 10px;">点击或拖拽上传比对.md文件</div>
+                </div>
+                <input type="file" id="mappingFileInput" accept=".md,.txt">
+
+                <div class="action-bar">
+                    <button class="btn btn-primary" onclick="restoreApp.executeRestore()">🔄 执行还原</button>
+                    <button class="btn btn-secondary" onclick="exportDebugLogs()">📥 导出调试日志</button>
+                    <button class="btn btn-secondary" onclick="app.reset()">🔙 返回</button>
+                </div>
+
+                <div id="restoreResult" class="hidden" style="margin-top: 20px;">
+                    <div class="stats">
+                        <div class="stat-item"><div class="stat-value" id="restoreCount">0</div><div class="stat-label">还原项数</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px;">手动添加脱敏项</h3>
+            <div class="form-group">
+                <label>原文内容</label>
+                <input type="text" class="form-control" id="manualOriginal" placeholder="输入要脱敏的文本">
+            </div>
+            <div class="form-group">
+                <label>脱敏类型</label>
+                <div class="type-selector" id="typeSelector">
+                    <div class="type-option" data-type="id_card">身份证号</div>
+                    <div class="type-option" data-type="organization">组织机构</div>
+                    <div class="type-option" data-type="date">日期</div>
+                    <div class="type-option" data-type="price">价格/金额</div>
+                    <div class="type-option" data-type="person_name">人名</div>
+                    <div class="type-option" data-type="phone">联系电话</div>
+                    <div class="type-option" data-type="email">联系邮箱</div>
+                    <div class="type-option" data-type="credit_code">代码</div>
+                    <div class="type-option" data-type="project_name">项目名称</div>
+                    <div class="type-option" data-type="address">地址</div>
+                </div>
+            </div>
+            <div style="text-align:right; margin-top:20px;">
+                <button class="btn btn-secondary" onclick="app.hideAddModal()">取消</button>
+                <button class="btn btn-primary" onclick="app.addManualRedaction()">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="exportModal">
+        <div class="modal-content">
+            <h3 style="margin-bottom:20px;">导出结果</h3>
+            <p>请选择要导出的内容：</p>
+            <div style="margin-top:15px;">
+                <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="exportDocx" checked> 📄 脱敏文件.docx</label>
+                <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="exportMapping" checked> 替换比对.md（用于还原）</label>
+            </div>
+            <div style="text-align:right; margin-top:20px;">
+                <button class="btn btn-secondary" onclick="app.hideExportModal()">取消</button>
+                <button class="btn btn-success" onclick="app.exportResults()">导出</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 白名单/黑名单管理窗口 -->
+    <div class="modal" id="listModal">
+        <div class="modal-content" style="max-width:800px;">
+            <h3 style="margin-bottom:20px;">📋 白名单/黑名单管理</h3>
+
+            <!-- 左右两列布局 -->
+            <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                <!-- 左侧：白名单 -->
+                <div style="flex:1; min-width:300px;">
+                    <h4 style="color:#28a745; margin-bottom:10px;">🟢 白名单 (不脱敏)</h4>
+                    <div id="whitelistContainer" style="max-height:300px; overflow-y:auto; border:1px solid #ddd; padding:10px; border-radius:4px; margin-bottom:10px; background:#fafafa;">
+                        <p style="color:#999; text-align:center;" id="whitelistEmpty">暂无白名单项</p>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="whitelistInput" placeholder="输入内容添加到白名单" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        <button class="btn btn-secondary" onclick="app.addToWhitelistFromUI()">添加</button>
+                    </div>
+                </div>
+
+                <!-- 右侧：黑名单 -->
+                <div style="flex:1; min-width:300px;">
+                    <h4 style="color:#dc3545; margin-bottom:10px;">⚫ 黑名单 (强制脱敏)</h4>
+                    <div id="blacklistContainer" style="max-height:300px; overflow-y:auto; border:1px solid #ddd; padding:10px; border-radius:4px; margin-bottom:10px; background:#fafafa;">
+                        <p style="color:#999; text-align:center;" id="blacklistEmpty">暂无黑名单项</p>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="blacklistInput" placeholder="输入内容添加到黑名单" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                        <button class="btn btn-secondary" onclick="app.addToBlacklistFromUI()">添加</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align:right; margin-top:20px; border-top:1px solid #ddd; padding-top:15px;">
+                <button class="btn btn-secondary" onclick="app.closeListModal()">关闭</button>
+                <button class="btn btn-success" onclick="app.saveAndCloseListModal()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 白名单/黑名单管理 ====================
+        const LISTS = {
+            whitelist: new Set(),  // 白名单：不脱敏的内容
+            blacklist: new Set()   // 黑名单：强制脱敏的内容
+        };
+
+        // 从 localStorage 加载
+        function loadLists() {
+            try {
+                const whitelist = localStorage.getItem('redaction_whitelist');
+                const blacklist = localStorage.getItem('redaction_blacklist');
+                if (whitelist) LISTS.whitelist = new Set(JSON.parse(whitelist));
+                if (blacklist) LISTS.blacklist = new Set(JSON.parse(blacklist));
+                console.log('白名单/黑名单已加载:', {
+                    whitelist: [...LISTS.whitelist],
+                    blacklist: [...LISTS.blacklist]
+                });
+            } catch (e) {
+                console.error('加载白名单/黑名单失败:', e);
+            }
+        }
+
+        // 保存到 localStorage
+        function saveLists() {
+            try {
+                localStorage.setItem('redaction_whitelist', JSON.stringify([...LISTS.whitelist]));
+                localStorage.setItem('redaction_blacklist', JSON.stringify([...LISTS.blacklist]));
+                console.log('白名单/黑名单已保存');
+            } catch (e) {
+                console.error('保存白名单/黑名单失败:', e);
+            }
+        }
+
+        // 检查是否在白名单中
+        function isInWhitelist(value) {
+            return LISTS.whitelist.has(value);
+        }
+
+        // 检查是否在黑名单中
+        function isInBlacklist(value) {
+            return LISTS.blacklist.has(value);
+        }
+
+        // 添加到白名单
+        function addToWhitelist(value) {
+            LISTS.whitelist.add(value);
+            saveLists();
+        }
+
+        // 从白名单移除
+        function removeFromWhitelist(value) {
+            LISTS.whitelist.delete(value);
+            saveLists();
+        }
+
+        // 添加到黑名单
+        function addToBlacklist(value) {
+            LISTS.blacklist.add(value);
+            saveLists();
+        }
+
+        // 从黑名单移除
+        function removeFromBlacklist(value) {
+            LISTS.blacklist.delete(value);
+            saveLists();
+        }
+
+        // 页面加载时初始化白名单/黑名单
+        loadLists();
+
+        // ==================== 脱敏规则定义 ====================
+        const DEFAULT_RULES = {
+            rules: [
+                { category: "email", patterns: ["[\\w\\-\\.]+@[\\w\\-]+(?:\\.[\\w\\-]+)+", "邮箱\\s*[：:]?\\s*([\\w\\-\\.]+@[\\w\\-]+(?:\\.[\\w\\-]+)+)"], replacement: "【邮箱${index}】", useCaptureGroup: true },
+                { category: "id_card", patterns: ["[1-9]\\d{5}(18|19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]"], replacement: "【身份证号${index}】" },
+                { category: "organization", patterns: ["([\\u4e00-\\u9fa5]{2,20})(有限公司|股份公司|集团)", "([A-Za-z][A-Za-z0-9\\s&]{2,30})(?:Company|Co\\.|Corporation|Corp\\.|Ltd\\.|Limited|LLC|Inc\\.|GmbH|S\\.A\\.|S\\.A|Sp\\. z o\\.o\\.|K\\.K\\.)\\b", "([\\u4e00-\\u9fa5]{2,10})(?:有限责任公司|股份有限公司)"], replacement: "【公司${index}】" },
+                { category: "date", patterns: ["\\d{4}\\s?年\\s?\\d{1,2}\\s?月\\s?\\d{1,2}\\s?日", "\\d{4}-\\d{1,2}-\\d{1,2}", "\\d{4}/\\d{1,2}/\\d{1,2}", "\\d{1,2}月\\d{1,2}日"], replacement: "【日期${index}】" },
+                { category: "price", patterns: ["人民币\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*[元万元]", "￥\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)元", "\\d+(?:,\\d{3})*(?:\\.\\d+)?[万千万元]", "(?:人民币|￥)\\s*([壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+元整?)", "(?:人民币|￥)\\s*([壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+[角分])", "[壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+元整?", "[壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+[角分]", "(?:RMB|USD|CNY|HKD|JPY|EUR|GBP)\\s+(\\d+(?:,\\d{3})*(?:\\.\\d+)?)", "(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*[～\\-－至]\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)", "(?:RMB|USD|CNY|HKD|JPY|EUR|GBP)\\s+\\d+(?:,\\d{3})*(?:\\.\\d+)?\\s*[～\\-－至]\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)"], replacement: "【金额${index}】", useCaptureGroup: true },
+                { category: "person_name", patterns: ["(?:甲方|乙方|丙方|丁方|戊方|己方|原告方|被告方|委托方|受托方|发包方|承包方|采购方|供应商|卖方|买方|出租方|承租方|转让方|受让方|投资方|被投资方|借款人|贷款人|保证人|抵押人|出质人|收款人|付款人|债务人|债权人|申请人|被申请人|法定代表人|联系人)\\s*[：:]\\s*([\\u4e00-\\u9fa5]{2,20})"], replacement: "【人员${index}】", useCaptureGroup: true },
+                { category: "phone", patterns: ["联系电话\\s*[：:]\\s*(1[3-9]\\d{9})", "联系电话\\s*[：:]\\s*(0\\d{2,3}-?\\d{7,8})", "联系电话\\s*[：:]\\s*\\((0\\d{2,3})\\)\\d{7,8}", "电话\\s*[：:]\\s*(1[3-9]\\d{9})", "电话\\s*[：:]\\s*(0\\d{2,3}-?\\d{7,8})", "手机\\s*[：:]\\s*(1[3-9]\\d{9})"], useCaptureGroup: true, replacement: "【电话${index}】" },
+                { category: "credit_code", patterns: ["统一社会信用代码\\s*[：:]\\s*([0-9A-HJ-NPQRTUWXY]{15,18})", "统一社会信用代码\\s*[：:]\\s*([0-9a-hj-npqrtuwxy]{15,18})"], useCaptureGroup: true, replacement: "【代码-统一社会信用代码${index}】" },
+                { category: "bank_account", patterns: ["账号\\s*[：:]\\s*(\\d{16,19})", "银行账号\\s*[：:]\\s*(\\d{16,19})", "账户\\s*[：:]\\s*(\\d{16,19})", "\\d{4}\\s+\\d{4}\\s+\\d{4}\\s+\\d{4}(?:\\s+\\d{4})?"], replacement: "【账号${index}】", useCaptureGroup: true },
+                { category: "org_code", patterns: ["组织机构代码\\s*[：:]\\s*(\\d{8}-?[0-9X])"], useCaptureGroup: true, replacement: "【代码-组织机构代码${index}】" },
+                { category: "patent_code", patterns: ["(?:专利|商标|著作权)申请号\\s*[：:]\\s*([A-Z0-9\\.]+)", "(?:JP|US|EP|CN|WO|KR|GB|DE|FR|CA|AU)(?:\\d{4,}|\\d{4}/\\d{6})[A-Z]\\d?", "[A-Z]{2}\\d{6,}[A-Z]{0,2}\\d?"], useCaptureGroup: true, replacement: "【代码-专利申请号${index}】" },
+                { category: "file_code", patterns: ["合同编号\\s*[：:]\\s*([A-Z0-9\\-]+)", "文件编号\\s*[：:]\\s*([A-Z0-9\\-]+)", "文件号\\s*[：:]\\s*([A-Z0-9\\-]+)" ], useCaptureGroup: true, replacement: "【代码-文件编号${index}】" },
+                { category: "case_number", patterns: ["([（(]\\d{4}[)）][^民刑行知赔]{1,6}?(?:民|刑|行|知|赔)[^初终再监执字第]{0,5}?\\d+[号])(?:[，。、,;．.？])?", "(\\(\\d{4}\\)[^\"]{2,8}?\\d+号)(?:[，。、,;．.？])?", "(（\\d{4}）[^\"]{2,8}?\\d+号)(?:[，。、,;．.？])?", "(\\d{4}年（[A-Z]{1,5}）第\\d+号)(?:[，。、,;．.？])?", "(Case No\\.(?:\\s+[\\d:]+-cv-)?\\d+)(?:[，。、,;．.？])?", "((?:Civil Action) No\\.\\s+[\\d:]+-cv-\\d+)(?:[，。、,;．.？])?", "(\\[\\d{4}\\]\\s+[A-Z]{1,4}\\s+\\d+\\s+\\([A-Z]+\\))(?:[，。、,;．.？])?", "(Az\\.:\\s+\\d+[A-Z]?\\s+\\d+/\\d{2,4})(?:[，。、,;．.？])?", "(RG\\s+\\d+/\\d+)(?:[，。、,;．.？])?"], useCaptureGroup: true, replacement: "【案号${index}】" },
+                { category: "project_name", patterns: ["([\\u4e00-\\u9fa5]{2,10})(项目|工程|系统|平台|计划)", "([\\u4e00-\\u9fa5]{2,10})(研发|建设|实施)项目"], replacement: "【项目${index}】" },
+                { category: "address", patterns: ["(?:地址|住所|住址|注册地址|办公地址|住所地)\\s*[：:]\\s*([\\u4e00-\\u9fa5\\w\\d\\u3000]+)"], useCaptureGroup: true, replacement: "【地址${index}】" }
+            ]
+        };
+
+        const TYPE_NAMES = { id_card: "身份证号", organization: "组织机构", date: "日期", price: "金额", person_name: "人名", phone: "联系电话", email: "联系邮箱", credit_code: "代码-统一社会信用代码", bank_account: "账号", org_code: "代码-组织机构代码", patent_code: "代码-专利申请号", file_code: "代码-文件编号", case_number: "案号", project_name: "项目名称", address: "地址", blacklist: "敏感信息" };
+
+        class RedactionApp {
+            constructor() {
+                this.file = null;
+                this.document = null;
+                this.redactions = [];
+                this.typeCounters = {};
+                this.lastClickedId = null;  // 上次点击的脱敏项ID
+                this.scrollDirection = 'up';  // 当前滚动方向
+                this.debugMode = false;  // 调试模式开关
+                this.initEvents();
+            }
+
+            initEvents() {
+                const uploadArea = document.getElementById('uploadArea');
+                const fileInput = document.getElementById('fileInput');
+                uploadArea.onclick = () => fileInput.click();
+                uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); };
+                uploadArea.ondragleave = () => uploadArea.classList.remove('dragover');
+                uploadArea.ondrop = (e) => { e.preventDefault(); uploadArea.classList.remove('dragover'); if(e.dataTransfer.files[0]) this.handleFile(e.dataTransfer.files[0]); };
+                fileInput.onchange = (e) => { if(e.target.files[0]) this.handleFile(e.target.files[0]); };
+
+                document.querySelectorAll('.type-option').forEach(el => {
+                    el.onclick = () => {
+                        document.querySelectorAll('.type-option').forEach(e => e.classList.remove('selected'));
+                        el.classList.add('selected');
+                    };
+                });
+
+                // 监听原文预览中的文本选择
+                const originalPreview = document.getElementById('originalPreview');
+                originalPreview.addEventListener('mouseup', () => this.handleTextSelection());
+                originalPreview.addEventListener('keyup', () => this.handleTextSelection());
+            }
+
+            /**
+             * 使用 JSZip 解析 docx 文件，提取包含自动编号的段落
+             */
+            async parseDocxWithNumbering(arrayBuffer) {
+                const zip = await JSZip.loadAsync(arrayBuffer);
+                const documentXml = await zip.file("word/document.xml").async("string");
+
+                // 尝试读取编号定义
+                let numberingXml = null;
+                const numberingFile = zip.file("word/numbering.xml");
+                if (numberingFile) {
+                    numberingXml = await numberingFile.async("string");
+                }
+
+                // 解析编号定义
+                const numberingMap = this.parseNumberingXml(numberingXml);
+
+                // 解析段落
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(documentXml, "text/xml");
+                const paragraphs = doc.getElementsByTagName("w:p");
+
+                const result = [];
+
+                // 维护编号计数器
+                const numCounters = {};
+
+                for (let i = 0; i < paragraphs.length; i++) {
+                    const p = paragraphs[i];
+
+                    // 提取文本内容
+                    const textNodes = p.getElementsByTagName("w:t");
+                    let text = "";
+                    for (let j = 0; j < textNodes.length; j++) {
+                        text += textNodes[j].textContent;
+                    }
+                    text = text.trim();
+                    if (!text) continue;
+
+                    // 检查是否有自动编号
+                    const numPr = p.getElementsByTagName("w:numPr")[0];
+                    let prefix = "";
+
+                    if (numPr) {
+                        // 获取编号ID和级别
+                        const numIdElem = numPr.getElementsByTagName("w:numId")[0];
+                        const ilvlElem = numPr.getElementsByTagName("w:ilvl")[0];
+
+                        if (numIdElem) {
+                            const numId = numIdElem.getAttribute("w:val");
+                            const ilvl = ilvlElem ? parseInt(ilvlElem.getAttribute("w:val")) : 0;
+
+                            // 获取编号定义
+                            const numDef = numberingMap[numId];
+                            if (numDef && numDef.levels) {
+                                const levelDef = numDef.levels[ilvl] || numDef.levels[0];
+
+                                // 更新计数器
+                                const key = `${numId}-${ilvl}`;
+                                if (!numCounters[key]) {
+                                    numCounters[key] = levelDef.start || 1;
+                                }
+
+                                // 生成编号文本
+                                prefix = this.formatNumber(numCounters[key], levelDef.format, levelDef.text);
+                                numCounters[key]++;
+                            }
+                        }
+                    }
+
+                    // 拼接编号和正文（如果有编号则加空格）
+                    result.push(prefix ? prefix + " " + text : text);
+                }
+
+                return result;
+            }
+
+            /**
+             * 解析 numbering.xml，返回编号定义映射
+             */
+            parseNumberingXml(numberingXml) {
+                if (!numberingXml) return {};
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(numberingXml, "text/xml");
+
+                const map = {};
+
+                // 解析抽象编号定义
+                const abstractNums = {};
+                const abstractNumElements = doc.getElementsByTagName("w:abstractNum");
+
+                for (let i = 0; i < abstractNumElements.length; i++) {
+                    const abstractNumId = abstractNumElements[i].getAttribute("w:abstractNumId");
+                    const levels = {};
+
+                    const lvlElements = abstractNumElements[i].getElementsByTagName("w:lvl");
+                    for (let j = 0; j < lvlElements.length; j++) {
+                        const ilvl = parseInt(lvlElements[j].getAttribute("w:ilvl"));
+
+                        // 获取编号格式
+                        const numFmtElem = lvlElements[j].getElementsByTagName("w:numFmt")[0];
+                        const format = numFmtElem ? numFmtElem.getAttribute("w:val") : "decimal";
+
+                        // 获取编号文本模板
+                        const lvlTextElem = lvlElements[j].getElementsByTagName("w:lvlText")[0];
+                        const text = lvlTextElem ? lvlTextElem.getAttribute("w:val") : "%1.";
+
+                        // 获取起始值
+                        const startElem = lvlElements[j].getElementsByTagName("w:start")[0];
+                        const start = startElem ? parseInt(startElem.getAttribute("w:val")) : 1;
+
+                        levels[ilvl] = { format, text, start };
+                    }
+
+                    abstractNums[abstractNumId] = { levels };
+                }
+
+                // 解析编号实例
+                const numElements = doc.getElementsByTagName("w:num");
+                for (let i = 0; i < numElements.length; i++) {
+                    const numId = numElements[i].getAttribute("w:numId");
+                    const abstractNumIdElem = numElements[i].getElementsByTagName("w:abstractNumId")[0];
+
+                    if (abstractNumIdElem) {
+                        const abstractNumId = abstractNumIdElem.getAttribute("w:val");
+                        map[numId] = abstractNums[abstractNumId] || { levels: {} };
+                    }
+                }
+
+                return map;
+            }
+
+            /**
+             * 格式化编号（将数字转换为指定格式）
+             */
+            formatNumber(num, format, template) {
+                let formattedNum = String(num);
+
+                // 检测中文格式（模板包含中文字符，如"第%1条"、"第%1款"）
+                const isChineseFormat = /[\u4e00-\u9fa5]/.test(template);
+
+                if (isChineseFormat) {
+                    // 中文格式，使用中文数字
+                    formattedNum = this.toChineseNum(num);
+                } else {
+                    // 其他格式（罗马数字、字母等）
+                    switch (format) {
+                        case "upperRoman":
+                            formattedNum = this.toRoman(num);
+                            break;
+                        case "lowerRoman":
+                            formattedNum = this.toRoman(num).toLowerCase();
+                            break;
+                        case "upperLetter":
+                            formattedNum = String.fromCharCode(64 + num);
+                            break;
+                        case "lowerLetter":
+                            formattedNum = String.fromCharCode(96 + num);
+                            break;
+                        case "decimal":
+                        default:
+                            // 默认为数字
+                            break;
+                    }
+                }
+
+                // 替换模板中的占位符
+                return template
+                    .replace("%1", formattedNum)
+                    .replace("%2", formattedNum)
+                    .replace("%3", formattedNum);
+            }
+
+            /**
+             * 数字转罗马数字
+             */
+            toRoman(num) {
+                const values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1];
+                const literals = ["M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"];
+                let result = "";
+                for (let i = 0; i < values.length; i++) {
+                    while (num >= values[i]) {
+                        result += literals[i];
+                        num -= values[i];
+                    }
+                }
+                return result;
+            }
+
+            /**
+             * 数字转中文数字（用于法律条文编号）
+             * 支持范围：1-100（法律条文通常不超过100条）
+             */
+            toChineseNum(num) {
+                const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+                const units = ['', '十', '百', '千'];
+
+                if (num < 10) {
+                    return digits[num];
+                } else if (num < 20) {
+                    // 11-19：十一、十二...
+                    return '十' + (num % 10 === 0 ? '' : digits[num % 10]);
+                } else if (num < 100) {
+                    // 20-99：二十、二十一...
+                    const tens = Math.floor(num / 10);
+                    const ones = num % 10;
+                    return digits[tens] + '十' + (ones === 0 ? '' : digits[ones]);
+                } else if (num === 100) {
+                    return '一百';
+                } else {
+                    // 超出范围，返回阿拉伯数字
+                    return String(num);
+                }
+            }
+
+            async handleFile(file) {
+                if (!file.name.endsWith('.docx')) { alert('请上传.docx文件'); return; }
+                this.file = file;
+                const arrayBuffer = await file.arrayBuffer();
+
+                // 使用新的解析方法，支持自动编号
+                const processedParagraphs = await this.parseDocxWithNumbering(arrayBuffer);
+
+                // === 调试输出 ===
+                console.log(`=== 处理后的段落（共${processedParagraphs.length}个，显示前100个）===`);
+                processedParagraphs.slice(0, 100).forEach((text, i) => {
+                    console.log(`[${i}] ${text.substring(0, 100)}`);
+                });
+
+                this.document = { paragraphs: processedParagraphs };
+                this.identifyRedactions();
+                this.render();
+                document.getElementById('mainContent').classList.remove('hidden');
+            }
+
+            identifyRedactions() {
+                // 清空调试日志
+                if (this.debugMode) {
+                    const debugLogDiv = document.getElementById('debugLog');
+                    if (debugLogDiv) debugLogDiv.textContent = '';
+                    this.debugLog('=== 开始识别 ===');
+                    this.debugLog(`总段落数: ${this.document.paragraphs.length}`);
+                    this.debugLog(`全文长度: ${this.document.paragraphs.join('\n').length} 字符`);
+                    this.debugLog('');
+                }
+
+                // 通用词排除列表
+                const EXCLUDED_TERMS = new Set([
+                    '甲方', '乙方', '丙方', '丁方', '戊方', '己方',
+                    '原告方', '被告方', '委托方', '受托方', '发包方', '承包方', '采购方', '供应商', '卖方', '买方',
+                    '出租方', '承租方', '转让方', '受让方', '投资方', '被投资方', '借款人', '贷款人',
+                    '保证人', '抵押人', '出质人', '收款人', '付款人', '债务人', '债权人',
+                    '申请人', '被申请人',
+                    '签署时间', '签署日期', '送达地址', '住址', '通讯地址',
+                    '联系方式', '联系电话', '联系邮箱', '授权代表', '法定代表人',
+                    '证件号码', '身份证号', '统一社会信用代码', '注册地址', '办公地址',
+                    '邮政编码', '开户行', '账号'
+                ]);
+
+                // 通用项目名称排除列表
+                const EXCLUDED_PROJECTS = new Set([
+                    '股权激励计划', '公司高管股权激励计划', '员工股权激励计划', '限制性股票激励计划', '股票期权激励计划',
+                    '股权激励', '员工持股计划', '限制性股票', '股票期权',
+                    '增资计划', '增资项目', '融资计划', '融资项目',
+                    '投资计划', '投资项目', '合作计划', '合作项目',
+                    '全国项目', '国家项目', '省级项目', '市级项目',
+                    '专项资金', '财政资金', '预算资金', '自有资金',
+                    '研发项目', '建设项目', '实施项目',
+                    '工程项目', '系统项目', '平台项目'
+                ]);
+
+                this.redactions = [];
+                this.typeCounters = {};
+                const fullText = this.document.paragraphs.join('\n');
+
+                // 显示前500字符的原文（可视化换行符）
+                if (this.debugMode) {
+                    const preview = fullText.substring(0, 500).replace(/\n/g, '⏎\n');
+                    this.debugLog(`原文预览(前500字符，换行符显示为⏎):\n${preview}`);
+                    this.debugLog('');
+                }
+
+                for (const rule of DEFAULT_RULES.rules) {
+                    if (this.debugMode) {
+                        this.debugLog(`=== 处理规则: ${rule.category} ===`);
+                    }
+                    // 调试：针对统一社会信用代码规则
+                    if (rule.category === 'credit_code') {
+                        console.log('=== 调试统一社会信用代码 ===');
+                        console.log('规则:', rule);
+                        console.log('全文预览(前500字符):', fullText.substring(0, 500));
+                        console.log('全文长度:', fullText.length);
+                        // 查找"统一社会信用代码"出现位置
+                        const codeIndex = fullText.indexOf('统一社会信用代码');
+                        if (codeIndex !== -1) {
+                            console.log('找到"统一社会信用代码"在位置:', codeIndex);
+                            console.log('周围字符(30字符):', fullText.substring(codeIndex, codeIndex + 30));
+                        }
+                    }
+
+                    for (const pattern of rule.patterns) {
+                        const regex = new RegExp(pattern, 'g');
+
+                        if (this.debugMode) {
+                            this.debugLog(`  模式: ${pattern}`);
+                        }
+
+                        if (rule.category === 'credit_code') {
+                            console.log('---');
+                            console.log('模式:', pattern);
+                            console.log('正则对象:', regex);
+                            // 测试匹配
+                            const testMatch = regex.exec(fullText);
+                            console.log('测试匹配结果:', testMatch);
+                            // 重置正则的lastIndex，因为exec会改变它
+                            regex.lastIndex = 0;
+                        }
+
+                        let match;
+                        while ((match = regex.exec(fullText)) !== null) {
+                            if (this.debugMode) {
+                                this.debugLog(`  ✓ 匹配: "${match[0]}" 在位置 ${match.index}`);
+                                if (match[1]) {
+                                    this.debugLog(`    捕获组: "${match[1]}"`);
+                                }
+                                // 显示前后10个字符的上下文
+                                const contextStart = Math.max(0, match.index - 10);
+                                const contextEnd = Math.min(fullText.length, match.index + match[0].length + 10);
+                                const context = fullText.substring(contextStart, contextEnd).replace(/\n/g, '⏎');
+                                this.debugLog(`    上下文: "...${context}..."`);
+                            }
+
+                            if (rule.category === 'credit_code') {
+                                console.log('匹配成功:', match);
+                            }
+                            // 调试：金额识别
+                            if (rule.category === 'price') {
+                                console.log('=== 金额匹配调试 ===');
+                                console.log('模式:', pattern);
+                                console.log('完整匹配:', match[0]);
+                                console.log('所有捕获组:', match.slice(1));
+                                console.log('match[1]:', match[1]);
+                                console.log('match[2]:', match[2]);
+                                console.log('useCaptureGroup:', rule.useCaptureGroup);
+                            }
+                            // 如果使用捕获组，优先使用捕获组内容
+                            const original = (rule.useCaptureGroup && match[1]) ? match[1] : match[0];
+                            if (rule.category === 'price') {
+                                console.log('最终original:', original);
+                            }
+                            const startIndex = match.index;
+                            const endIndex = startIndex + original.length;
+
+                            // 边界检查：防止部分匹配（使用完整匹配长度进行边界检查）
+                            if (rule.category === 'price') {
+                                // 使用 match[0].length 计算用于边界检查的结束位置
+                                const matchEndIndex = startIndex + match[0].length;
+
+                                // 检查匹配前是否有数字字符（表示部分匹配）
+                                if (startIndex > 0 && /\d/.test(fullText[startIndex - 1])) {
+                                    if (this.debugMode) {
+                                        this.debugLog(`    ✗ 跳过: 前面有数字字符`);
+                                    }
+                                    continue; // 跳过部分匹配
+                                }
+                                // 检查匹配后是否紧跟数字字符或连字符
+                                if (matchEndIndex < fullText.length) {
+                                    const nextChar = fullText[matchEndIndex];
+                                    if (/\d/.test(nextChar)) {
+                                        if (this.debugMode) {
+                                            this.debugLog(`    ✗ 跳过: 后面有数字字符"${nextChar}"`);
+                                        }
+                                        continue;
+                                    }
+                                    if (nextChar === '-') {
+                                        if (this.debugMode) {
+                                            this.debugLog(`    ✗ 跳过: 后面紧跟连字符"-"`);
+                                        }
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            // 检查是否包含换行符（针对人名和地址识别，防止跨行匹配）
+                            if ((rule.category === 'person_name' || rule.category === 'address') && match[0].includes('\n')) {
+                                if (this.debugMode) {
+                                    this.debugLog(`    ✗ 跳过: 跨行匹配 "${match[0].replace(/\n/g, '⏎')}"`);
+                                }
+                                continue;
+                            }
+
+                            // 检查是否已经是脱敏格式（防止嵌套脱敏）
+                            if (/^【[^】]+】$/.test(original)) {
+                                if (this.debugMode) {
+                                    this.debugLog(`    ✗ 跳过: "${original}" 已是脱敏格式`);
+                                }
+                                continue;
+                            }
+
+                            // 检查是否为通用词（仅针对人名识别）
+                            if (rule.category === 'person_name' && EXCLUDED_TERMS.has(original)) {
+                                if (this.debugMode) {
+                                    this.debugLog(`    ✗ 跳过: "${original}" 在排除列表中`);
+                                }
+                                continue;
+                            }
+
+                            // 检查是否为通用项目名称（仅针对项目名识别）
+                            if (rule.category === 'project_name' && EXCLUDED_PROJECTS.has(original)) {
+                                if (this.debugMode) {
+                                    this.debugLog(`    ✗ 跳过: "${original}" 在项目排除列表中`);
+                                }
+                                continue;
+                            }
+
+                            // 检查地址内容是否包含"联系电话"（仅针对地址识别）
+                            if (rule.category === 'address' && original.includes('联系电话')) {
+                                if (this.debugMode) {
+                                    this.debugLog(`    ✗ 跳过: "${original}" 包含"联系电话"`);
+                                }
+                                continue;
+                            }
+                            // 检查地址内容是否太短（少于3个字符）
+                            if (rule.category === 'address' && original.length < 3) {
+                                if (this.debugMode) {
+                                    this.debugLog(`    ✗ 跳过: "${original}" 太短(${original.length}字符)`);
+                                }
+                                continue;
+                            }
+
+                            // 检查是否在白名单中（所有类型通用）
+                            if (isInWhitelist(original)) {
+                                if (this.debugMode) {
+                                    this.debugLog(`    ✗ 跳过: "${original}" 在白名单中`);
+                                }
+                                continue;
+                            }
+
+                            if (this.isDuplicate(original)) {
+                                if (this.debugMode) {
+                                    this.debugLog(`    ✗ 跳过: "${original}" 重复`);
+                                }
+                                continue;
+                            }
+
+                            if (this.debugMode) {
+                                this.debugLog(`    → 已添加: "${original}" → "${rule.replacement}"`);
+                            }
+                            this.typeCounters[rule.category] = (this.typeCounters[rule.category] || 0) + 1;
+                            const replacement = rule.replacement.replace('${index}', this.typeCounters[rule.category]);
+
+                            // 计算用于高亮的文本（只高亮捕获组部分，不包括前缀和尾随标点）
+                            let highlightText = match[0];  // 默认使用完整匹配
+                            if (rule.useCaptureGroup && match[1]) {
+                                // 如果有捕获组，找到捕获组在完整匹配中的位置
+                                const fullMatch = match[0];
+                                const captured = match[1];
+                                const capturedIndex = fullMatch.indexOf(captured);
+                                if (capturedIndex !== -1) {
+                                    // 只高亮捕获组部分（从捕获组开始到完整匹配结束）
+                                    highlightText = fullMatch.substring(capturedIndex);
+
+                                    // 检查尾部是否是纯标点符号，如果是则移除（用于案号等）
+                                    const punctuationPattern = /[，。、,;．.？]+$/;
+                                    if (punctuationPattern.test(highlightText)) {
+                                        highlightText = highlightText.replace(punctuationPattern, '');
+                                    }
+                                }
+                            }
+
+                            this.redactions.push({
+                                id: Date.now() + Math.random(),
+                                original: original,
+                                matchText: match[0],  // 存储完整匹配
+                                highlightText: highlightText,  // 用于原文预览高亮（只高亮捕获组部分）
+                                replacement: replacement,
+                                type: rule.category
+                            });
+
+                            // 特殊处理：电话号码识别后，继续在同一行中查找其他电话
+                            if (rule.category === 'phone') {
+                                // 检查完整的匹配是否包含前缀（说明这是从带前缀的模式匹配的）
+                                const fullMatch = match[0];
+                                if (fullMatch.includes('联系电话') || fullMatch.includes('电话：') || fullMatch.includes('手机：')) {
+                                    // 找到当前行的结束位置（换行符或文档结尾）
+                                    let lineEnd = fullText.indexOf('\n', endIndex);
+                                    if (lineEnd === -1) lineEnd = fullText.length;
+
+                                    // 从当前匹配结束位置开始，查找同一行中的其他电话号码
+                                    const remainingLine = fullText.substring(endIndex, lineEnd);
+
+                                    // 手机号模式
+                                    const mobilePattern = /1[3-9]\d{9}/g;
+                                    // 座机模式（带区号）
+                                    const landlinePattern = /0\d{2,3}-?\d{7,8}/g;
+                                    // 座机模式（括号区号）
+                                    const landlinePattern2 = /\(0\d{2,3}\)\d{7,8}/g;
+
+                                    // 查找所有手机号
+                                    let mobileMatch;
+                                    while ((mobileMatch = mobilePattern.exec(remainingLine)) !== null) {
+                                        const phone = mobileMatch[0];
+                                        if (!this.isDuplicate(phone) && phone !== original) {
+                                            this.typeCounters[rule.category] = (this.typeCounters[rule.category] || 0) + 1;
+                                            const extraReplacement = rule.replacement.replace('${index}', this.typeCounters[rule.category]);
+                                            this.redactions.push({ id: Date.now() + Math.random(), original: phone, replacement: extraReplacement, type: rule.category });
+                                        }
+                                    }
+
+                                    // 查找所有座机号（带区号）
+                                    let landlineMatch;
+                                    while ((landlineMatch = landlinePattern.exec(remainingLine)) !== null) {
+                                        const phone = landlineMatch[0];
+                                        if (!this.isDuplicate(phone) && phone !== original) {
+                                            this.typeCounters[rule.category] = (this.typeCounters[rule.category] || 0) + 1;
+                                            const extraReplacement = rule.replacement.replace('${index}', this.typeCounters[rule.category]);
+                                            this.redactions.push({ id: Date.now() + Math.random(), original: phone, replacement: extraReplacement, type: rule.category });
+                                        }
+                                    }
+
+                                    // 查找所有座机号（括号区号）
+                                    let landlineMatch2;
+                                    while ((landlineMatch2 = landlinePattern2.exec(remainingLine)) !== null) {
+                                        const phone = landlineMatch2[0];
+                                        if (!this.isDuplicate(phone) && phone !== original) {
+                                            this.typeCounters[rule.category] = (this.typeCounters[rule.category] || 0) + 1;
+                                            const extraReplacement = rule.replacement.replace('${index}', this.typeCounters[rule.category]);
+                                            this.redactions.push({ id: Date.now() + Math.random(), original: phone, replacement: extraReplacement, type: rule.category });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 处理黑名单：强制脱敏黑名单中的内容
+                if (LISTS.blacklist.size > 0) {
+                    if (this.debugMode) {
+                        this.debugLog('=== 处理黑名单 ===');
+                    }
+                    const blacklistedItems = [...LISTS.blacklist];
+                    for (const item of blacklistedItems) {
+                        // 检查黑名单项是否在全文中
+                        if (fullText.includes(item)) {
+                            // 检查是否已经被识别
+                            if (!this.isDuplicate(item)) {
+                                if (this.debugMode) {
+                                    this.debugLog(`  ✓ 强制脱敏（黑名单）: "${item}"`);
+                                }
+                                // 添加到脱敏列表，使用通用替换
+                                this.redactions.push({
+                                    id: Date.now() + Math.random(),
+                                    original: item,
+                                    replacement: '【敏感信息】',
+                                    type: 'blacklist'
+                                });
+                            } else if (this.debugMode) {
+                                this.debugLog(`  - 已在识别列表中: "${item}"`);
+                            }
+                        }
+                    }
+                }
+
+                this.updateStats();
+            }
+
+            isDuplicate(original) { return this.redactions.some(r => r.original === original); }
+
+            render() {
+                const container = document.getElementById('originalPreview');
+
+                // === 调试1：redactions基本信息 ===
+                console.log('=== Render调试开始 ===');
+                console.log('Redactions总数:', this.redactions.length);
+
+                // 按原文长度降序排序（长文本优先，避免短文本破坏长文本）
+                const sortedRedactions = [...this.redactions].sort((a, b) => b.original.length - a.original.length);
+
+                // === 调试2：排序后的redactions ===
+                console.log('排序后redactions（前10个）:');
+                sortedRedactions.slice(0, 10).forEach((r, i) => {
+                    console.log(`  [${i}] id=${r.id}, original="${r.original}" (${r.original.length}字符)`);
+                });
+
+                // === 调试3：检查可能重复的original值 ===
+                const originalMap = {};
+                this.redactions.forEach(r => {
+                    if (!originalMap[r.original]) {
+                        originalMap[r.original] = [];
+                    }
+                    originalMap[r.original].push(r.id);
+                });
+                const duplicates = Object.entries(originalMap).filter(([text, ids]) => ids.length > 1);
+                if (duplicates.length > 0) {
+                    console.warn('发现重复的original值:');
+                    duplicates.forEach(([text, ids]) => {
+                        console.warn(`  "${text}": ${ids.length}个redaction, IDs=[${ids.join(', ')}]`);
+                    });
+                }
+
+                // === 调试4：逐段落跟踪替换 ===
+                let totalReplacements = 0;
+                const paragraphCounts = [];
+                // 使用计数器为每个span生成唯一ID
+                let spanCounter = 0;
+
+                container.innerHTML = this.document.paragraphs.map((p, pIdx) => {
+                    let text = this.escapeHtml(p);
+                    let paraReplacements = 0;
+
+                    sortedRedactions.forEach(r => {
+                        // 使用 highlightText 进行原文预览高亮（只高亮捕获组部分）
+                        const highlightText = r.highlightText || r.matchText || r.original;
+                        // 使用'g'标志替换所有匹配，并为每个匹配生成唯一span ID
+                        const regex = new RegExp(this.escapeRegex(highlightText), 'g');
+                        text = text.replace(regex, (match) => {
+                            const uniqueSpanId = `${r.id}-${spanCounter++}`;
+                            paraReplacements++;
+                            totalReplacements++;
+                            return `<span class="redacted" id="redaction-span-${uniqueSpanId}" onclick="app.scrollToRedaction(${r.id})">${match}</span>`;
+                        });
+                    });
+
+                    if (paraReplacements > 0) {
+                        paragraphCounts.push({ pIdx: pIdx + 1, count: paraReplacements });
+                    }
+                    return `<p class="preview-text">${text}</p>`;
+                }).join('');
+
+                // === 调试5：替换统计 ===
+                console.log('替换统计:');
+                console.log(`  总替换次数: ${totalReplacements}`);
+                console.log(`  有替换的段落: ${paragraphCounts.length}个`);
+                console.log(`  段落详情:`, paragraphCounts.map(x => `段落${x.pIdx}: ${x.count}次`).join(', '));
+
+                const list = document.getElementById('redactionList');
+                if (this.redactions.length === 0) { list.innerHTML = '<p style="color:#999;text-align:center;">暂无脱敏项</p>'; return; }
+                list.innerHTML = this.redactions.map(r => `
+                    <div class="redaction-item" id="redaction-item-${r.id}" onclick="app.scrollToOriginal(${r.id})">
+                        <span class="type-${r.type}" style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;">${TYPE_NAMES[r.type]}</span>
+                        <div class="redaction-original">原文: ${r.original}</div>
+                        <div class="redaction-replacement">替换: ${r.replacement}</div>
+                        <div class="redaction-location" onclick="event.stopPropagation();app.editRedaction(${r.id})" style="cursor:pointer;">点击修改</div>
+                        <div class="redaction-actions"><button class="btn-xs btn-danger" onclick="event.stopPropagation();app.deleteRedaction(${r.id})">删除</button></div>
+                    </div>
+                `).join('');
+                document.getElementById('redactionCount').textContent = this.redactions.length + ' 项';
+
+                const preview = document.getElementById('redactedPreview');
+                preview.innerHTML = this.document.paragraphs.map(p => {
+                    let text = this.escapeHtml(p);
+                    // 使用 matchText 进行精确替换，避免误替换
+                    sortedRedactions.forEach(r => {
+                        const replaceTarget = r.matchText || r.original;
+                        text = text.replace(new RegExp(this.escapeRegex(replaceTarget), 'g'),
+                            `<span class="redacted-preview">${r.replacement}</span>`);
+                    });
+                    return `<p class="preview-text">${text}</p>`;
+                }).join('');
+
+                // 同步滚动
+                this.setupScrollSync(container, preview);
+
+                // === 调试6：最终span检查（延迟执行，确保DOM已更新） ===
+                setTimeout(() => {
+                    const allSpans = container.querySelectorAll('span.redacted');
+                    console.log('=== 最终HTML分析 ===');
+                    console.log(`生成了 ${allSpans.length} 个span（redactions=${this.redactions.length}，多出${allSpans.length - this.redactions.length}个是重复文本）`);
+
+                    // 收集所有span的ID
+                    const spanIds = [];
+                    allSpans.forEach((span, i) => {
+                        spanIds.push(span.id);
+                    });
+
+                    // 检查重复ID
+                    const idCounts = {};
+                    spanIds.forEach(id => {
+                        idCounts[id] = (idCounts[id] || 0) + 1;
+                    });
+                    const duplicateIds = Object.entries(idCounts).filter(([id, count]) => count > 1);
+                    if (duplicateIds.length > 0) {
+                        console.error('❌ 发现重复ID:');
+                        duplicateIds.forEach(([id, count]) => {
+                            const spans = Array.from(allSpans).filter(s => s.id === id);
+                            console.error(`  ID=${id}: 出现${count}次, 文本=[${spans.map(s => s.textContent).join(', ')}]`);
+                        });
+                    } else {
+                        console.log('✓ 没有重复ID - 所有span ID唯一');
+                    }
+                }, 100);
+            }
+
+            setupScrollSync(el1, el2) {
+                let syncing = false;
+                el1.onscroll = () => {
+                    if (syncing) return;
+                    syncing = true;
+                    const ratio = el1.scrollTop / (el1.scrollHeight - el1.clientHeight);
+                    el2.scrollTop = ratio * (el2.scrollHeight - el2.clientHeight);
+                    setTimeout(() => syncing = false, 10);
+                };
+                el2.onscroll = () => {
+                    if (syncing) return;
+                    syncing = true;
+                    const ratio = el2.scrollTop / (el2.scrollHeight - el2.clientHeight);
+                    el1.scrollTop = ratio * (el1.scrollHeight - el1.clientHeight);
+                    setTimeout(() => syncing = false, 10);
+                };
+            }
+
+            scrollToRedaction(id) {
+                const item = document.getElementById(`redaction-item-${id}`);
+                if (item) {
+                    item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    item.style.background = '#fff3cd';
+                    setTimeout(() => item.style.background = '#f8f9fa', 1000);
+                }
+            }
+
+            scrollToOriginal(id) {
+                // 找到该redaction对应的所有span（ID格式：redaction-span-${id}-${counter}）
+                const allSpans = document.querySelectorAll(`span[id^="redaction-span-${id}"]`);
+                const item = document.getElementById(`redaction-item-${id}`);
+
+                if (allSpans.length > 0) {
+                    // 定位到第一个span
+                    const span = allSpans[0];
+                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    span.classList.add('orange-flash');
+                    setTimeout(() => span.classList.remove('orange-flash'), 1800);
+                }
+
+                if (item) {
+                    // 脱敏项列表闪烁（淡黄色，与原文高亮一致）
+                    item.style.background = '#fff3cd';
+                    setTimeout(() => item.style.background = '#f8f9fa', 800);
+
+                    // 智能滚动：根据点击历史决定方向
+                    const container = document.getElementById('redactionList');
+                    const itemHeight = item.clientHeight;
+                    const scrollDistance = itemHeight + 10;
+
+                    // 确定滚动方向
+                    if (this.lastClickedId !== null) {
+                        const lastItem = document.getElementById(`redaction-item-${this.lastClickedId}`);
+                        if (lastItem) {
+                            // 比较位置：当前项在上次点击项的下方 → 向下滚动，否则向上滚动
+                            if (item.offsetTop > lastItem.offsetTop) {
+                                this.scrollDirection = 'down';  // 点击下面的项，向下滚动
+                            } else if (item.offsetTop < lastItem.offsetTop) {
+                                this.scrollDirection = 'up';  // 点击上面的项，向上滚动
+                            }
+                            // 位置相同则保持当前方向
+                        }
+                    }
+
+                    // 执行滚动
+                    if (this.scrollDirection === 'up') {
+                        container.scrollTo({ top: container.scrollTop - scrollDistance, behavior: 'smooth' });
+                    } else {
+                        container.scrollTo({ top: container.scrollTop + scrollDistance, behavior: 'smooth' });
+                    }
+
+                    // 更新状态
+                    this.lastClickedId = id;
+                }
+            }
+
+            escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+            escapeRegex(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+            updateStats() { document.getElementById('totalCount').textContent = this.redactions.length; document.getElementById('paragraphCount').textContent = this.document.paragraphs.length; }
+
+            deleteRedaction(id) {
+                const r = this.redactions.find(x => x.id === id);
+                if (!r) return;
+
+                // 询问是否加入白名单
+                const confirmed = confirm(`"${r.original}" 已从脱敏列表移除\n\n是否同时添加到白名单？\n以后遇到相同内容将不再脱敏`);
+                if (confirmed) {
+                    addToWhitelist(r.original);
+                }
+
+                this.redactions = this.redactions.filter(x => x.id !== id);
+                this.render();
+                this.updateStats();
+            }
+            editRedaction(id) { const r = this.redactions.find(x => x.id === id); if (!r) return; const newRep = prompt('修改替换文本:', r.replacement); if (newRep !== null) { r.replacement = newRep.trim(); this.render(); } }
+
+            showAddModal(prefillText = '') {
+                document.getElementById('addModal').classList.add('show');
+                if (prefillText) {
+                    document.getElementById('manualOriginal').value = prefillText;
+                }
+            }
+            hideAddModal() { document.getElementById('addModal').classList.remove('show'); }
+            addManualRedaction() {
+                const original = document.getElementById('manualOriginal').value.trim();
+                const selected = document.querySelector('.type-option.selected');
+                if (!original) { alert('请输入原文'); return; }
+                if (!selected) { alert('请选择类型'); return; }
+                const type = selected.dataset.type;
+                this.typeCounters[type] = (this.typeCounters[type] || 0) + 1;
+                const replacement = prompt('替换文本（留空自动生成）') || `【${TYPE_NAMES[type]}${this.typeCounters[type]}】`;
+                this.redactions.push({ id: Date.now(), original, replacement, type, location: '手动添加' });
+
+                // 询问是否加入黑名单
+                const confirmed = confirm(`"${original}" 已添加到脱敏列表\n\n是否同时添加到黑名单？\n以后遇到相同内容将自动脱敏`);
+                if (confirmed) {
+                    addToBlacklist(original);
+                }
+
+                this.hideAddModal();
+                this.render();
+                this.updateStats();
+            }
+
+            showExportModal() { document.getElementById('exportModal').classList.add('show'); }
+            hideExportModal() { document.getElementById('exportModal').classList.remove('show'); }
+
+            handleTextSelection() {
+                const selection = window.getSelection();
+                const selectedText = selection.toString().trim();
+
+                // 只有选择了原文预览中的文本，且长度在2-100字符之间才显示弹窗
+                if (selectedText && selectedText.length >= 2 && selectedText.length <= 100) {
+                    // 检查选择是否在原文预览内
+                    const container = document.getElementById('originalPreview');
+                    if (container.contains(selection.anchorNode)) {
+                        this.showAddModalWithText(selectedText);
+                    }
+                }
+            }
+
+            showAddModalWithText(text) {
+                this.showAddModal(text);
+            }
+            exportResults() {
+                if (document.getElementById('exportDocx').checked) this.exportDocx();
+                if (document.getElementById('exportMapping').checked) this.exportMappingMD();
+                this.hideExportModal();
+            }
+
+            // ==================== 白名单/黑名单管理方法 ====================
+
+            showListModal() {
+                this.renderLists();
+                document.getElementById('listModal').classList.add('show');
+            }
+
+            closeListModal() {
+                document.getElementById('listModal').classList.remove('show');
+            }
+
+            saveAndCloseListModal() {
+                saveLists();
+                this.closeListModal();
+                // 如果有文档加载，重新识别
+                if (this.document) {
+                    this.identifyRedactions();
+                    this.render();
+                }
+            }
+
+            renderLists() {
+                // 渲染白名单
+                const whitelistContainer = document.getElementById('whitelistContainer');
+                if (LISTS.whitelist.size > 0) {
+                    whitelistContainer.innerHTML = [...LISTS.whitelist].map(item => `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:5px; margin-bottom:5px; background:white; border-radius:4px; border:1px solid #e0e0e0;">
+                            <span style="flex:1; word-break:break-all; padding:5px;">${this.escapeHtml(item)}</span>
+                            <button class="btn-xs btn-danger" onclick="app.removeFromWhitelistUI('${this.escapeHtml(item).replace(/'/g, "\\'")}')"
+                                    style="padding:2px 8px; margin-left:5px; flex-shrink:0;">×</button>
+                        </div>
+                    `).join('');
+                } else {
+                    whitelistContainer.innerHTML = '<p style="color:#999; text-align:center; padding:20px 0;">暂无白名单项</p>';
+                }
+
+                // 渲染黑名单
+                const blacklistContainer = document.getElementById('blacklistContainer');
+                if (LISTS.blacklist.size > 0) {
+                    blacklistContainer.innerHTML = [...LISTS.blacklist].map(item => `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:5px; margin-bottom:5px; background:white; border-radius:4px; border:1px solid #e0e0e0;">
+                            <span style="flex:1; word-break:break-all; padding:5px;">${this.escapeHtml(item)}</span>
+                            <button class="btn-xs btn-danger" onclick="app.removeFromBlacklistUI('${this.escapeHtml(item).replace(/'/g, "\\'")}')"
+                                    style="padding:2px 8px; margin-left:5px; flex-shrink:0;">×</button>
+                        </div>
+                    `).join('');
+                } else {
+                    blacklistContainer.innerHTML = '<p style="color:#999; text-align:center; padding:20px 0;">暂无黑名单项</p>';
+                }
+            }
+
+            addToWhitelistFromUI() {
+                const input = document.getElementById('whitelistInput');
+                const value = input.value.trim();
+                if (value) {
+                    addToWhitelist(value);
+                    input.value = '';
+                    this.renderLists();
+                }
+            }
+
+            addToBlacklistFromUI() {
+                const input = document.getElementById('blacklistInput');
+                const value = input.value.trim();
+                if (value) {
+                    addToBlacklist(value);
+                    input.value = '';
+                    this.renderLists();
+                }
+            }
+
+            removeFromWhitelistUI(item) {
+                removeFromWhitelist(item);
+                this.renderLists();
+            }
+
+            removeFromBlacklistUI(item) {
+                removeFromBlacklist(item);
+                this.renderLists();
+            }
+
+            /**
+             * 导出docx文件（处理跨runs替换，保留原格式）
+             */
+            async exportDocx() {
+                try {
+                    const arrayBuffer = await this.file.arrayBuffer();
+                    const zip = await JSZip.loadAsync(arrayBuffer);
+
+                    // 获取 document.xml
+                    let xml = await zip.file("word/document.xml").async("string");
+
+                    // 解析XML
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(xml, "text/xml");
+                    const paragraphs = doc.getElementsByTagName("w:p");
+
+                    // 按长度降序排序redactions（长文本优先）
+                    const sortedRedactions = [...this.redactions].sort((a, b) => b.original.length - a.original.length);
+
+                    // 处理每个段落
+                    for (let pIdx = 0; pIdx < paragraphs.length; pIdx++) {
+                        const para = paragraphs[pIdx];
+                        const runs = para.getElementsByTagName("w:r");
+
+                        // 使用集合记录已处理的redaction索引
+                        const processedIndices = new Set();
+
+                        // 策略1：先尝试单run内简单替换
+                        for (let rIdx = 0; rIdx < sortedRedactions.length; rIdx++) {
+                            const r = sortedRedactions[rIdx];
+                            const original = r.original;
+                            const replacement = r.replacement;
+                            let found = false;
+
+                            for (const run of runs) {
+                                const textNodes = run.getElementsByTagName("w:t");
+                                for (const tn of textNodes) {
+                                    const text = tn.textContent;
+                                    let pos = text.indexOf(original);
+                                    while (pos !== -1) {
+                                        // 边界检查
+                                        const before = pos > 0 ? text.charAt(pos - 1) : '';
+                                        const after = pos + original.length < text.length ? text.charAt(pos + original.length) : '';
+
+                                        // 前后都不能是数字
+                                        if (!/\d/.test(before) && !/\d/.test(after)) {
+                                            // 检查是否在【】内（防止嵌套脱敏）
+                                            if (!this.isInRedactedBrackets(text, pos)) {
+                                                tn.textContent = text.replace(new RegExp(this.escapeRegex(original), 'g'), replacement);
+                                                found = true;
+                                                break;  // 已替换，退出循环
+                                            }
+                                        }
+                                        pos = text.indexOf(original, pos + 1);
+                                    }
+                                    if (found) break;
+                                }
+                                if (found) break;
+                            }
+
+                            if (found) {
+                                processedIndices.add(rIdx);
+                            }
+                        }
+
+                        // 策略2：只处理未在策略1中处理的项
+                        const unprocessedRedactions = sortedRedactions.filter((_, idx) => !processedIndices.has(idx));
+                        if (unprocessedRedactions.length > 0) {
+                            this.replaceAcrossRuns(para, unprocessedRedactions);
+                        }
+                    }
+
+                    // 序列化XML
+                    const serializer = new XMLSerializer();
+                    xml = serializer.serializeToString(doc);
+
+                    // 替换 XML
+                    zip.file("word/document.xml", xml);
+
+                    // 生成并下载文件
+                    const blob = await zip.generateAsync({ type: "blob" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = this.file.name.replace(".docx", "_脱敏.docx");
+                    link.click();
+                    URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error("导出docx失败:", error);
+                    alert("导出docx失败: " + error.message);
+                }
+            }
+
+            /**
+             * 处理跨runs的文本替换
+             */
+            replaceAcrossRuns(para, redactions) {
+                const runs = para.getElementsByTagName("w:r");
+                if (runs.length === 0) return;
+
+                // 累积所有runs的文本和位置信息
+                let accumulatedText = "";
+                const runInfo = [];
+
+                for (let i = 0; i < runs.length; i++) {
+                    const run = runs[i];
+                    const textNodes = run.getElementsByTagName("w:t");
+                    let runText = "";
+                    for (const tn of textNodes) {
+                        runText += tn.textContent;
+                    }
+
+                    const startPos = accumulatedText.length;
+                    accumulatedText += runText;
+                    const endPos = accumulatedText.length;
+
+                    runInfo.push({
+                        run: run,
+                        textNodes: Array.from(textNodes),
+                        startPos: startPos,
+                        endPos: endPos,
+                        text: runText
+                    });
+                }
+
+                // 查找并替换跨runs的文本
+                for (const r of redactions) {
+                    const original = r.original;
+                    const replacement = r.replacement;
+
+                    // 在累积文本中查找
+                    let pos = accumulatedText.indexOf(original);
+                    while (pos !== -1) {
+                        const endPos = pos + original.length;
+
+                        // 检查是否在【】内（防止嵌套脱敏）
+                        if (this.isInRedactedBrackets(accumulatedText, pos)) {
+                            pos = accumulatedText.indexOf(original, endPos);
+                            continue;
+                        }
+
+                        // 边界检查：确保是独立的数字金额
+                        // 检查前边界：前面不能是数字
+                        if (pos > 0) {
+                            const charBefore = accumulatedText.charAt(pos - 1);
+                            if (/\d/.test(charBefore)) {
+                                pos = accumulatedText.indexOf(original, endPos);
+                                continue;
+                            }
+                        }
+
+                        // 检查后边界：后面不能是数字
+                        if (endPos < accumulatedText.length) {
+                            const charAfter = accumulatedText.charAt(endPos);
+                            if (/\d/.test(charAfter)) {
+                                pos = accumulatedText.indexOf(original, endPos);
+                                continue;
+                            }
+                        }
+
+                        // 找到包含目标文本的runs
+                        const affectedRuns = [];
+                        for (const info of runInfo) {
+                            // 检查此run是否与目标范围重叠
+                            const overlapStart = Math.max(pos, info.startPos);
+                            const overlapEnd = Math.min(endPos, info.endPos);
+                            if (overlapStart < overlapEnd) {
+                                affectedRuns.push({
+                                    info: info,
+                                    overlapStart: overlapStart,
+                                    overlapEnd: overlapEnd
+                                });
+                            }
+                        }
+
+                        if (affectedRuns.length > 0) {
+                            // 执行替换
+                            if (affectedRuns.length === 1) {
+                                // 单个run内替换
+                                const info = affectedRuns[0].info;
+                                const localStart = affectedRuns[0].overlapStart - info.startPos;
+                                const localEnd = affectedRuns[0].overlapEnd - info.startPos;
+                                const before = info.text.substring(0, localStart);
+                                const after = info.text.substring(localEnd);
+                                const newText = before + replacement + after;
+
+                                // 更新所有text nodes
+                                let textIdx = 0;
+                                for (const tn of info.textNodes) {
+                                    if (textIdx === 0) {
+                                        tn.textContent = newText;
+                                    } else {
+                                        tn.textContent = "";
+                                    }
+                                    textIdx++;
+                                }
+                            } else {
+                                // 跨多个runs替换
+                                const firstInfo = affectedRuns[0].info;
+                                const lastInfo = affectedRuns[affectedRuns.length - 1].info;
+
+                                const firstStart = affectedRuns[0].overlapStart - firstInfo.startPos;
+                                const before = firstInfo.text.substring(0, firstStart);
+
+                                const lastEnd = affectedRuns[affectedRuns.length - 1].overlapEnd - lastInfo.startPos;
+                                const after = lastInfo.text.substring(lastEnd);
+
+                                // 第一个run：保留前缀 + 替换文本
+                                let textIdx = 0;
+                                for (const tn of firstInfo.textNodes) {
+                                    if (textIdx === 0) {
+                                        tn.textContent = before + replacement;
+                                    } else {
+                                        tn.textContent = "";
+                                    }
+                                    textIdx++;
+                                }
+
+                                // 中间的runs：清空
+                                for (let i = 1; i < affectedRuns.length - 1; i++) {
+                                    for (const tn of affectedRuns[i].info.textNodes) {
+                                        tn.textContent = "";
+                                    }
+                                }
+
+                                // 最后一个run：保留后缀
+                                textIdx = 0;
+                                for (const tn of lastInfo.textNodes) {
+                                    if (textIdx === 0) {
+                                        tn.textContent = after;
+                                    } else {
+                                        tn.textContent = "";
+                                    }
+                                    textIdx++;
+                                }
+                            }
+                        }
+
+                        // 查找下一个匹配
+                        pos = accumulatedText.indexOf(original, endPos);
+                    }
+                }
+            }
+
+            /**
+             * 检查位置是否在【】标记内（防止嵌套脱敏）
+             */
+            isInRedactedBrackets(text, pos) {
+                const beforeText = text.substring(0, pos);
+                const lastOpen = beforeText.lastIndexOf('【');
+                const lastClose = beforeText.lastIndexOf('】');
+                // 如果有【但没有】，说明在【】内
+                return lastOpen > lastClose;
+            }
+
+            exportMappingMD() {
+                let md = `# 脱敏内容替换比对\n\n**文件**: ${this.file.name}\n**生成时间**: ${new Date().toLocaleString()}\n**脱敏项总数**: ${this.redactions.length}\n\n## 替换明细\n\n| 序号 | 原文 | 替换 | 类型 |\n|------|------|------|------|\n`;
+                this.redactions.forEach((r, i) => {
+                    // 对邮箱类型的原文进行代码块包裹，防止markdown自动解析为链接
+                    let original = r.original;
+                    if (r.type === 'email') {
+                        original = `\`${original}\``;
+                    }
+                    md += `| ${i+1} | ${original} | ${r.replacement} | ${TYPE_NAMES[r.type]} |\n`;
+                });
+
+                // 使用docx文件名作为前缀，例如：合同.docx -> 合同_mapping.md
+                const baseFileName = this.file.name.replace(/\.docx$/i, '');
+                const mappingFileName = `${baseFileName}_mapping.md`;
+                this.downloadFile(mappingFileName, md);
+            }
+
+            downloadFile(filename, content) {
+                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            }
+
+            selectMode(mode) {
+                document.getElementById('modeSelector').classList.add('hidden');
+                document.getElementById('redactModeUI').classList.add('hidden');
+                document.getElementById('restoreModeUI').classList.add('hidden');
+                document.getElementById('redactModeCard').classList.remove('selected');
+                document.getElementById('restoreModeCard').classList.remove('selected');
+
+                if (mode === 'redact') {
+                    document.getElementById('redactModeUI').classList.remove('hidden');
+                    document.getElementById('redactModeCard').classList.add('selected');
+                } else if (mode === 'restore') {
+                    document.getElementById('restoreModeUI').classList.remove('hidden');
+                    document.getElementById('restoreModeCard').classList.add('selected');
+                    restoreApp.initEvents();
+                }
+            }
+
+            reset() {
+                document.getElementById('modeSelector').classList.remove('hidden');
+                document.getElementById('redactModeUI').classList.add('hidden');
+                document.getElementById('restoreModeUI').classList.add('hidden');
+                document.getElementById('redactModeCard').classList.remove('selected');
+                document.getElementById('restoreModeCard').classList.remove('selected');
+                document.getElementById('mainContent').classList.add('hidden');
+                document.getElementById('restoreResult').classList.add('hidden');
+                this.file = null;
+                this.document = null;
+                this.redactions = [];
+                this.typeCounters = {};
+            }
+
+            toggleDebug() {
+                this.debugMode = document.getElementById('debugMode').checked;
+                const debugPanel = document.getElementById('debugPanel');
+                if (this.debugMode) {
+                    debugPanel.classList.remove('hidden');
+                    // 重新识别以生成调试日志
+                    if (this.document) {
+                        this.identifyRedactions();
+                        this.render();
+                    }
+                } else {
+                    debugPanel.classList.add('hidden');
+                }
+            }
+
+            debugLog(message) {
+                if (this.debugMode) {
+                    const debugLogDiv = document.getElementById('debugLog');
+                    if (debugLogDiv) {
+                        debugLogDiv.textContent += message + '\n';
+                        debugLogDiv.scrollTop = debugLogDiv.scrollHeight;
+                    }
+                }
+            }
+
+            exportDebugLog() {
+                const debugLogDiv = document.getElementById('debugLog');
+                if (!debugLogDiv) return;
+
+                const logContent = debugLogDiv.textContent;
+                const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `debug_log_${new Date().getTime()}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // 调试日志收集
+        const debugLogs = [];
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            debugLogs.push(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '));
+        };
+
+        // 导出调试日志
+        function exportDebugLogs() {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const content = debugLogs.join('\n');
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `debug-logs-${timestamp}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 还原应用类
+        class RestoreApp {
+            constructor() {
+                this.file = null;
+                this.mappingFile = null;
+                this.mapping = {};
+            }
+
+            initEvents() {
+                // 脱敏稿文件上传
+                const uploadArea = document.getElementById('restoreUploadArea');
+                const fileInput = document.getElementById('restoreFileInput');
+                uploadArea.onclick = () => fileInput.click();
+                uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); };
+                uploadArea.ondragleave = () => uploadArea.classList.remove('dragover');
+                uploadArea.ondrop = (e) => { e.preventDefault(); uploadArea.classList.remove('dragover'); if(e.dataTransfer.files[0]) this.handleFile(e.dataTransfer.files[0]); };
+                fileInput.onchange = (e) => { if(e.target.files[0]) this.handleFile(e.target.files[0]); };
+
+                // 比对.md文件上传
+                const mappingUploadArea = document.getElementById('mappingUploadArea');
+                const mappingFileInput = document.getElementById('mappingFileInput');
+                mappingUploadArea.onclick = () => mappingFileInput.click();
+                mappingUploadArea.ondragover = (e) => { e.preventDefault(); mappingUploadArea.classList.add('dragover'); };
+                mappingUploadArea.ondragleave = () => mappingUploadArea.classList.remove('dragover');
+                mappingUploadArea.ondrop = (e) => { e.preventDefault(); mappingUploadArea.classList.remove('dragover'); if(e.dataTransfer.files[0]) this.handleMappingFile(e.dataTransfer.files[0]); };
+                mappingFileInput.onchange = (e) => { if(e.target.files[0]) this.handleMappingFile(e.target.files[0]); };
+            }
+
+            handleFile(file) {
+                if (!file.name.endsWith('.docx')) {
+                    alert('请上传docx文件');
+                    return;
+                }
+                this.file = file;
+                document.getElementById('restoreUploadArea').innerHTML = `
+                    <div style="font-size: 48px;">✅</div>
+                    <div style="font-size: 16px; margin-top: 10px;">已选择：${file.name}</div>
+                `;
+            }
+
+            handleMappingFile(file) {
+                const validExtensions = ['.md', '.txt'];
+                const hasValidExtension = validExtensions.some(ext => file.name.endsWith(ext));
+
+                if (!hasValidExtension) {
+                    alert('请上传.md或.txt文件');
+                    return;
+                }
+
+                this.mappingFile = file;
+                document.getElementById('mappingUploadArea').innerHTML = `
+                    <div style="font-size: 48px;">✅</div>
+                    <div style="font-size: 16px; margin-top: 10px;">已选择：${file.name}</div>
+                `;
+            }
+
+            parseMapping(content) {
+                console.log('=== 调试：原始比对.md内容 ===');
+                console.log(content);
+                console.log('=== 调试：开始解析 ===');
+
+                const mapping = {};
+                const tablePattern = /\|\s*\d+\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|/g;
+                let match;
+
+                while ((match = tablePattern.exec(content)) !== null) {
+                    let original = match[1].trim();
+                    const replacement = match[2].trim();
+
+                    console.log(`解析到: original="${original}", replacement="${replacement}"`);
+
+                    if (original === '原文' || replacement === '替换') continue;
+                    if (replacement.startsWith('【') && replacement.endsWith('】')) {
+                        // 处理各种markdown链接格式，提取真实的邮箱地址
+                        // 1. 代码块格式: `xxx@example.com`
+                        const codeBlockMatch = original.match(/^`(.+)`$/);
+                        if (codeBlockMatch) {
+                            original = codeBlockMatch[1];
+                            console.log(`  -> 代码块格式，提取: "${original}"`);
+                        }
+                        // 2. markdown链接格式: [xxx@example.com](mailto:xxx@example.com)
+                        else if (original.startsWith('[') && original.includes('](')) {
+                            const linkTextMatch = original.match(/^\[([^\]]+)\]/);
+                            if (linkTextMatch) {
+                                original = linkTextMatch[1];
+                                console.log(`  -> 链接格式，提取: "${original}"`);
+                            }
+                        }
+                        // 3. 自动链接格式: <xxx@example.com>
+                        else if (original.startsWith('<') && original.endsWith('>')) {
+                            original = original.slice(1, -1);
+                            console.log(`  -> 自动链接格式，提取: "${original}"`);
+                        }
+
+                        mapping[replacement] = original;
+                        console.log(`  -> 映射: "${replacement}" => "${original}"`);
+                    }
+                }
+
+                console.log('=== 调试：解析到的映射 ===');
+                console.log(JSON.stringify(mapping, null, 2));
+                console.log(`=== 调试：共 ${Object.keys(mapping).length} 条映射 ===`);
+                return mapping;
+            }
+
+            async executeRestore() {
+                if (!this.file) {
+                    alert('请先上传脱敏稿文件');
+                    return;
+                }
+
+                if (!this.mappingFile) {
+                    alert('请先上传比对.md文件');
+                    return;
+                }
+
+                // 读取比对.md文件内容
+                const mappingContent = await this.mappingFile.text();
+
+                this.mapping = this.parseMapping(mappingContent);
+                if (Object.keys(this.mapping).length === 0) {
+                    alert('未能从比对.md中解析出有效的替换映射，请检查格式');
+                    return;
+                }
+
+                try {
+                    const arrayBuffer = await this.file.arrayBuffer();
+                    const zip = await JSZip.loadAsync(arrayBuffer);
+
+                    // 获取 document.xml
+                    let xml = await zip.file("word/document.xml").async("string");
+
+                    // 解析XML
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(xml, "text/xml");
+                    const paras = doc.getElementsByTagName("w:p");
+
+                    let restoreCount = 0;
+
+                    // 处理每个段落
+                    for (const para of paras) {
+                        const runs = para.getElementsByTagName("w:r");
+                        if (runs.length === 0) continue;
+
+                        // 累积所有runs的文本和位置信息
+                        let accumulatedText = "";
+                        const runInfo = [];
+
+                        for (let i = 0; i < runs.length; i++) {
+                            const run = runs[i];
+                            const textNodes = run.getElementsByTagName("w:t");
+                            console.log(`构建run[${i}]: 发现 ${textNodes.length} 个 textNodes`);
+
+                            let runText = "";
+                            for (let j = 0; j < textNodes.length; j++) {
+                                const tn = textNodes[j];
+                                const content = tn.textContent;
+                                console.log(`  textNode[${j}]: 长度=${content.length}, 内容="${content}"`);
+                                runText += content;
+                            }
+
+                            const startPos = accumulatedText.length;
+                            accumulatedText += runText;
+                            const endPos = accumulatedText.length;
+
+                            console.log(`构建run[${i}]: runText长度=${runText.length}, startPos=${startPos}, endPos=${endPos}`);
+                            console.log(`  runText完整内容: "${runText}"`);
+
+                            runInfo.push({
+                                run: run,
+                                textNodes: Array.from(textNodes),
+                                startPos: startPos,
+                                endPos: endPos,
+                                text: runText,
+                                runInfoIndex: i
+                            });
+                        }
+
+                        // 调试：显示累积文本信息
+                        console.log(`调试：accumulatedText长度=${accumulatedText.length}, 内容="${accumulatedText.substring(0, 50)}..."`);
+                        console.log(`调试：runInfo共${runInfo.length}个runs`);
+
+                        // 查找并替换所有标记
+                        for (const [replacement, original] of Object.entries(this.mapping)) {
+                            let pos = accumulatedText.indexOf(replacement);
+                            if (pos !== -1) {
+                                console.log(`调试：在段落中找到 "${replacement}"，位置 ${pos}，将替换为 "${original}"`);
+                            }
+                            while (pos !== -1) {
+                                const endPos = pos + replacement.length;
+
+                                console.log(`调试：目标位置 pos=${pos}, endPos=${endPos}, 长度=${replacement.length}`);
+
+                                // 找到包含目标文本的runs
+                                const affectedRuns = [];
+                                for (const info of runInfo) {
+                                    const overlapStart = Math.max(pos, info.startPos);
+                                    const overlapEnd = Math.min(endPos, info.endPos);
+                                    // 关键修复：使用 <= 处理边界情况（当目标位置正好在run边界时）
+                                    const hasOverlap = overlapStart <= overlapEnd && overlapStart < info.endPos && overlapEnd > info.startPos;
+                                    console.log(`  runInfo[${info.runInfoIndex}]: startPos=${info.startPos}, endPos=${info.endPos}, text="${info.text.substring(0, 30)}..."`);
+                                    console.log(`    overlapStart=${overlapStart}, overlapEnd=${overlapEnd}, hasOverlap=${hasOverlap}`);
+                                    if (hasOverlap) {
+                                        affectedRuns.push({
+                                            info: info,
+                                            overlapStart: overlapStart,
+                                            overlapEnd: overlapEnd
+                                        });
+                                    }
+                                }
+
+                                console.log(`调试：affectedRuns.length = ${affectedRuns.length}`);
+                                if (affectedRuns.length > 0) {
+                                    console.log(`调试：开始替换，影响 ${affectedRuns.length} 个runs`);
+
+                                    if (affectedRuns.length === 1) {
+                                        // 在同一个run内替换
+                                        const info = affectedRuns[0].info;
+                                        const startOffset = affectedRuns[0].overlapStart - info.startPos;
+                                        const endOffset = affectedRuns[0].overlapEnd - info.startPos;
+                                        const oldContent = info.textNodes[0].textContent;
+                                        const newContent = info.text.substring(0, startOffset) + original + info.text.substring(endOffset);
+                                        info.textNodes[0].textContent = newContent;
+                                        // 关键修复：更新runInfo中的text字段，确保后续替换使用最新状态
+                                        info.text = newContent;
+                                        console.log(`  同run替换: "${oldContent}" -> "${newContent}"`);
+                                        console.log(`  修改后textContent: "${info.textNodes[0].textContent}"`);
+                                    } else {
+                                        // 跨多个runs替换
+                                        console.log(`  跨runs替换: 涉及 ${affectedRuns.length} 个runs`);
+                                        const firstInfo = affectedRuns[0].info;
+                                        const lastInfo = affectedRuns[affectedRuns.length - 1].info;
+
+                                        const firstStart = affectedRuns[0].overlapStart - firstInfo.startPos;
+                                        const before = firstInfo.text.substring(0, firstStart);
+
+                                        const lastEnd = affectedRuns[affectedRuns.length - 1].overlapEnd - lastInfo.startPos;
+                                        const after = lastInfo.text.substring(lastEnd);
+
+                                        console.log(`  before: "${before}", original: "${original}", after: "${after}"`);
+
+                                        // 第一个run：保留前缀 + 原文
+                                        let textIdx = 0;
+                                        for (const tn of firstInfo.textNodes) {
+                                            if (textIdx === 0) {
+                                                tn.textContent = before + original;
+                                                console.log(`  第一个run修改: "${before + original}"`);
+                                            } else {
+                                                tn.textContent = "";
+                                            }
+                                            textIdx++;
+                                        }
+
+                                        // 中间的runs：清空
+                                        for (let i = 1; i < affectedRuns.length - 1; i++) {
+                                            const item = affectedRuns[i];
+                                            for (const tn of item.info.textNodes) {
+                                                tn.textContent = "";
+                                            }
+                                        }
+
+                                        // 最后一个run：保留后缀
+                                        textIdx = 0;
+                                        for (const tn of lastInfo.textNodes) {
+                                            if (textIdx === 0) {
+                                                tn.textContent = after;
+                                                console.log(`  最后一个run修改: "${after}"`);
+                                            } else {
+                                                tn.textContent = "";
+                                            }
+                                            textIdx++;
+                                        }
+
+                                        // 关键修复：更新runInfo中的text字段，确保后续替换使用最新状态
+                                        firstInfo.text = before + original;
+                                        lastInfo.text = after;
+                                        for (let i = 1; i < affectedRuns.length - 1; i++) {
+                                            affectedRuns[i].info.text = "";
+                                        }
+                                        console.log(`  跨runs替换完成，已更新runInfo.text`);
+                                    }
+
+                                    restoreCount++;
+                                    console.log(`调试：替换完成，当前计数 ${restoreCount}`);
+
+                                    // 更新累积文本
+                                    accumulatedText = accumulatedText.substring(0, pos) + original + accumulatedText.substring(endPos);
+
+                                    // 关键修复：重新构建runInfo以确保位置信息准确
+                                    // 因为替换后文本长度变化，需要从textNodes重新读取
+                                    runInfo.length = 0;  // 清空数组
+                                    let newAccumulatedText = "";
+                                    for (let i = 0; i < runs.length; i++) {
+                                        const run = runs[i];
+                                        const textNodes = run.getElementsByTagName("w:t");
+                                        let runText = "";
+                                        for (const tn of textNodes) {
+                                            runText += tn.textContent;
+                                        }
+
+                                        const startPos = newAccumulatedText.length;
+                                        newAccumulatedText += runText;
+                                        const endPos = newAccumulatedText.length;
+
+                                        runInfo.push({
+                                            run: run,
+                                            textNodes: Array.from(textNodes),
+                                            startPos: startPos,
+                                            endPos: endPos,
+                                            text: runText,
+                                            runInfoIndex: i
+                                        });
+                                    }
+                                    accumulatedText = newAccumulatedText;
+                                    console.log(`调试：重新构建runInfo完成，accumulatedText长度=${accumulatedText.length}`);
+                                }
+
+                                pos = accumulatedText.indexOf(replacement, endPos);
+                            }
+                        }
+                    }
+
+                    // 序列化XML
+                    const serializer = new XMLSerializer();
+                    xml = serializer.serializeToString(doc);
+
+                    // 替换 XML
+                    zip.file("word/document.xml", xml);
+
+                    // 生成并下载文件
+                    const blob = await zip.generateAsync({ type: "blob" });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = this.file.name.replace(".docx", "_还原.docx");
+                    link.click();
+                    URL.revokeObjectURL(url);
+
+                    // 显示结果
+                    document.getElementById('restoreCount').textContent = restoreCount;
+                    document.getElementById('restoreResult').classList.remove('hidden');
+
+                } catch (error) {
+                    console.error("还原失败:", error);
+                    alert("还原失败: " + error.message);
+                }
+            }
+        }
+
+        const app = new RedactionApp();
+        const restoreApp = new RestoreApp();
+    </script>
+</body>
+</html>

@@ -1,0 +1,261 @@
+{
+  "version": "1.1.0",
+  "created": "2026-02-03",
+  "modified": "2026-02-05",
+  "description": "法律文件脱敏默认规则库 v1.1.0",
+  "rules": [
+    {
+      "id": "email",
+      "name": "联系邮箱",
+      "category": "email",
+      "enabled": true,
+      "patterns": [
+        "[\\w\\-\\.]+@[\\w\\-]+(\\.[\\w\\-]+)+",
+        "邮箱\\s*[：:]?\\s*[\\w\\-\\.]+@[\\w\\-]+(\\.[\\w\\-]+)+"
+      ],
+      "replacement": "【邮箱${index}】",
+      "contextSensitive": false,
+      "priority": 10,
+      "description": "识别联系邮箱（优先级最高，避免被其他规则误匹配）"
+    },
+    {
+      "id": "id_card",
+      "name": "身份证号",
+      "category": "id_card",
+      "enabled": true,
+      "patterns": [
+        "[1-9]\\d{5}(18|19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]"
+      ],
+      "replacement": "【身份证号${index}】",
+      "contextSensitive": false,
+      "priority": 10,
+      "description": "识别18位中国居民身份证号码"
+    },
+    {
+      "id": "company_name",
+      "name": "公司名称",
+      "category": "organization",
+      "enabled": true,
+      "patterns": [
+        "(^|[\\s，。；：、\\(（\\[\\{「『])([\\u4e00-\\u9fa5]{2,20})(有限公司|股份公司|集团公司|控股公司|公司)",
+        "([^管理本其各该他她它])公司(?!管理|制度|章程|行为|财产|业务|范围|住所|地址|内|中|上)",
+        "([\\u4e00-\\u9fa5]{2,20})(研究院|研究所|实验室|技术中心|大学|学院)"
+      ],
+      "replacement": "【公司${index}】",
+      "contextSensitive": true,
+      "priority": 10,
+      "description": "识别公司名称（边界检查+排除描述性语句）"
+    },
+    {
+      "id": "date",
+      "name": "日期",
+      "category": "date",
+      "enabled": true,
+      "patterns": [
+        "\\d{4}年\\d{1,2}月\\d{1,2}日",
+        "\\d{4}-\\d{1,2}-\\d{1,2}",
+        "\\d{4}/\\d{1,2}/\\d{1,2}",
+        "\\d{1,2}月\\d{1,2}日"
+      ],
+      "replacement": "【日期${index}】",
+      "contextSensitive": false,
+      "priority": 8,
+      "description": "识别各种格式的日期"
+    },
+    {
+      "id": "price",
+      "name": "价格/金额",
+      "category": "price",
+      "enabled": true,
+      "patterns": [
+        "人民币\\s*\\d+(,\\d{3})*(\\.\\d+)?[万千万元]",
+        "\\d+(,\\d{3})*(\\.\\d+)?[万千万元]",
+        "RMB\\s*\\d+(,\\d{3})*(\\.\\d+)?",
+        "\\$\\s*\\d+(,\\d{3})*(\\.\\d+)?"
+      ],
+      "replacement": "【金额${index}】",
+      "contextSensitive": false,
+      "priority": 9,
+      "description": "识别价格和金额（支持元/千元/万元/RMB/$）"
+    },
+    {
+      "id": "person_name",
+      "name": "人名",
+      "category": "person_name",
+      "enabled": true,
+      "useCaptureGroup": true,
+      "patterns": [
+        "(?:甲方|乙方|丙方|丁方|戊方|己方|原告方|被告方|委托方|受托方|发包方|承包方|采购方|供应商|卖方|买方|出租方|承租方|转让方|受让方|投资方|被投资方|借款人|贷款人|保证人|抵押人|出质人|收款人|付款人|债务人|债权人|申请人|被申请人)\\s*[：:]\\s*([\\u4e00-\\u9fa5]{2,20})(?=\\s|$|[，。；：])"
+      ],
+      "replacement": "【人员${index}】",
+      "contextSensitive": true,
+      "priority": 5,
+      "description": "识别合同当事人人名/公司名（只捕获名称部分，不包含前缀）"
+    },
+    {
+      "id": "credit_code",
+      "name": "统一社会信用代码",
+      "category": "credit_code",
+      "enabled": true,
+      "useCaptureGroup": true,
+      "patterns": [
+        "统一社会信用代码\\s*[：:]\\s*([0-9A-HJ-NPQRTUWXY]{15,18})",
+        "统一社会信用代码\\s*[：:]\\s*([0-9a-hj-npqrtuwxy]{15,18})"
+      ],
+      "replacement": "【代码-统一社会信用代码${index}】",
+      "contextSensitive": true,
+      "priority": 9,
+      "description": "识别统一社会信用代码（支持大小写，15位旧格式和18位标准格式）"
+    },
+    {
+      "id": "org_code",
+      "name": "组织机构代码",
+      "category": "org_code",
+      "enabled": true,
+      "useCaptureGroup": true,
+      "patterns": [
+        "组织机构代码\\s*[：:]\\s*(\\d{8}-?[0-9X])"
+      ],
+      "replacement": "【代码-组织机构代码${index}】",
+      "contextSensitive": true,
+      "priority": 9,
+      "description": "识别组织机构代码"
+    },
+    {
+      "id": "patent_code",
+      "name": "专利申请号",
+      "category": "patent_code",
+      "enabled": true,
+      "useCaptureGroup": true,
+      "patterns": [
+        "(?:专利|商标|著作权)申请号\\s*[：:]\\s*([A-Z0-9\\.]+)"
+      ],
+      "replacement": "【代码-专利申请号${index}】",
+      "contextSensitive": true,
+      "priority": 9,
+      "description": "识别专利/商标/著作权申请号"
+    },
+    {
+      "id": "file_code",
+      "name": "文件编号",
+      "category": "file_code",
+      "enabled": true,
+      "useCaptureGroup": true,
+      "patterns": [
+        "合同编号\\s*[：:]\\s*([A-Z0-9\\-]+)",
+        "文件编号\\s*[：:]\\s*([A-Z0-9\\-]+)",
+        "文件号\\s*[：:]\\s*([A-Z0-9\\-]+)"
+      ],
+      "replacement": "【代码-文件编号${index}】",
+      "contextSensitive": true,
+      "priority": 7,
+      "description": "识别合同编号、文件编号等"
+    },
+    {
+      "id": "phone",
+      "name": "联系电话",
+      "category": "phone",
+      "enabled": true,
+      "useCaptureGroup": true,
+      "patterns": [
+        "联系电话\\s*[：:]\\s*(1[3-9]\\d{9})",
+        "联系电话\\s*[：:]\\s*(0\\d{2,3}-?\\d{7,8})",
+        "联系电话\\s*[：:]\\s*\\((0\\d{2,3})\\)\\d{7,8}",
+        "电话\\s*[：:]\\s*(1[3-9]\\d{9})",
+        "电话\\s*[：:]\\s*(0\\d{2,3}-?\\d{7,8})",
+        "手机\\s*[：:]\\s*(1[3-9]\\d{9})"
+      ],
+      "replacement": "【电话${index}】",
+      "contextSensitive": false,
+      "priority": 8,
+      "description": "识别联系电话（手机、座机、括号区号）"
+    },
+    {
+      "id": "project_name",
+      "name": "项目名称",
+      "category": "project_name",
+      "enabled": true,
+      "patterns": [
+        "([\\u4e00-\\u9fa5]{2,10})(项目|工程|系统|平台|计划)",
+        "([\\u4e00-\\u9fa5]{2,10})(研发|建设|实施)项目"
+      ],
+      "replacement": "【项目${index}】",
+      "contextSensitive": false,
+      "priority": 6,
+      "description": "识别项目名称"
+    },
+    {
+      "id": "address",
+      "name": "地址",
+      "category": "address",
+      "enabled": true,
+      "patterns": [
+        "(地址|住所|住址|注册地址|办公地址|住所地)\\s*[：:]\\s*([\\u4e00-\\u9fa5\\w\\d\\s]+)"
+      ],
+      "replacement": "【地址${index}】",
+      "contextSensitive": false,
+      "priority": 4,
+      "description": "识别地址信息（地址：XXX格式）"
+    }
+  ],
+  "contextRules": [
+    {
+      "id": "party_a",
+      "name": "甲方/买方",
+      "trigger": "甲方|买方|委托方|发包方|采购方",
+      "category": "buyer",
+      "prefix": "买方"
+    },
+    {
+      "id": "party_b",
+      "name": "乙方/卖方",
+      "trigger": "乙方|卖方|受托方|承包方|供应商",
+      "category": "seller",
+      "prefix": "卖方"
+    },
+    {
+      "id": "party_c",
+      "name": "丙方/第三方",
+      "trigger": "丙方|第三方|担保方",
+      "category": "third_party",
+      "prefix": "第三方"
+    }
+  ],
+  "priceContextRules": [
+    {
+      "trigger": "合同总价|总金额|交易价格|成交价格",
+      "type": "合同总价"
+    },
+    {
+      "trigger": "单价|单位价格",
+      "type": "单价"
+    },
+    {
+      "trigger": "预付款|首付款|定金",
+      "type": "预付款"
+    },
+    {
+      "trigger": "尾款|余款|最后一期款",
+      "type": "尾款"
+    },
+    {
+      "trigger": "违约金|赔偿金|补偿金",
+      "type": "违约金"
+    }
+  ],
+  "metadata": {
+    "totalRules": 13,
+    "enabledRules": 13,
+    "lastModified": "2026-02-05",
+    "version": "1.1.0",
+    "changes": [
+      "价格支持千万元单位",
+      "拆分代码类型为4个子类型",
+      "添加前缀依赖和useCaptureGroup",
+      "添加contextRules和priceContextRules",
+      "增强公司名规则（边界检查+负向前瞻）",
+      "添加更多日期格式",
+      "添加RMB和美元价格模式"
+    ]
+  }
+}

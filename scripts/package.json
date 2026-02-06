@@ -1,0 +1,12 @@
+{
+  "name": "legal-redaction-tool",
+  "version": "1.0.0",
+  "description": "法律文件脱敏处理工具 - Node.js版本",
+  "main": "redact.js",
+  "scripts": {
+    "redact": "node redact.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10"
+  }
+}
