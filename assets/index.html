@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>法律文件脱敏处理工具</title>
     <script src="mammoth.browser.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="jszip.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; padding: 20px; }
@@ -269,7 +269,7 @@
         // ==================== 白名单/黑名单管理 ====================
         const LISTS = {
             whitelist: new Set(),  // 白名单：不脱敏的内容
-            blacklist: new Set()   // 黑名单：强制脱敏的内容
+            blacklist: new Set()   // 黑名单：强制脱敏的内容（存储格式: { original, type } 对象）
         };
 
         // 从 localStorage 加载
@@ -278,7 +278,16 @@
                 const whitelist = localStorage.getItem('redaction_whitelist');
                 const blacklist = localStorage.getItem('redaction_blacklist');
                 if (whitelist) LISTS.whitelist = new Set(JSON.parse(whitelist));
-                if (blacklist) LISTS.blacklist = new Set(JSON.parse(blacklist));
+                if (blacklist) {
+                    const data = JSON.parse(blacklist);
+                    LISTS.blacklist = new Set(data.map(item => {
+                        // 兼容旧格式：字符串转为对象
+                        if (typeof item === 'string') {
+                            return { original: item, type: 'blacklist' };
+                        }
+                        return item;
+                    }));
+                }
                 console.log('白名单/黑名单已加载:', {
                     whitelist: [...LISTS.whitelist],
                     blacklist: [...LISTS.blacklist]
@@ -322,15 +331,28 @@
         }
 
         // 添加到黑名单
-        function addToBlacklist(value) {
-            LISTS.blacklist.add(value);
+        function addToBlacklist(value, type = 'blacklist') {
+            // 检查是否已存在（只比较 original）
+            const existing = [...LISTS.blacklist].find(item =>
+                (typeof item === 'string' ? item : item.original) === value
+            );
+            if (existing) {
+                // 更新类型：删除旧记录
+                LISTS.blacklist.delete(existing);
+            }
+            LISTS.blacklist.add({ original: value, type });
             saveLists();
         }
 
         // 从黑名单移除
         function removeFromBlacklist(value) {
-            LISTS.blacklist.delete(value);
-            saveLists();
+            const existing = [...LISTS.blacklist].find(item =>
+                (typeof item === 'string' ? item : item.original) === value
+            );
+            if (existing) {
+                LISTS.blacklist.delete(existing);
+                saveLists();
+            }
         }
 
         // 页面加载时初始化白名单/黑名单
@@ -342,8 +364,8 @@
                 { category: "email", patterns: ["[\\w\\-\\.]+@[\\w\\-]+(?:\\.[\\w\\-]+)+", "邮箱\\s*[：:]?\\s*([\\w\\-\\.]+@[\\w\\-]+(?:\\.[\\w\\-]+)+)"], replacement: "【邮箱${index}】", useCaptureGroup: true },
                 { category: "id_card", patterns: ["[1-9]\\d{5}(18|19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[0-9Xx]"], replacement: "【身份证号${index}】" },
                 { category: "organization", patterns: ["([\\u4e00-\\u9fa5]{2,20})(有限公司|股份公司|集团)", "([A-Za-z][A-Za-z0-9\\s&]{2,30})(?:Company|Co\\.|Corporation|Corp\\.|Ltd\\.|Limited|LLC|Inc\\.|GmbH|S\\.A\\.|S\\.A|Sp\\. z o\\.o\\.|K\\.K\\.)\\b", "([\\u4e00-\\u9fa5]{2,10})(?:有限责任公司|股份有限公司)"], replacement: "【公司${index}】" },
-                { category: "date", patterns: ["\\d{4}\\s?年\\s?\\d{1,2}\\s?月\\s?\\d{1,2}\\s?日", "\\d{4}-\\d{1,2}-\\d{1,2}", "\\d{4}/\\d{1,2}/\\d{1,2}", "\\d{1,2}月\\d{1,2}日"], replacement: "【日期${index}】" },
-                { category: "price", patterns: ["人民币\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*[元万元]", "￥\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)元", "\\d+(?:,\\d{3})*(?:\\.\\d+)?[万千万元]", "(?:人民币|￥)\\s*([壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+元整?)", "(?:人民币|￥)\\s*([壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+[角分])", "[壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+元整?", "[壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+[角分]", "(?:RMB|USD|CNY|HKD|JPY|EUR|GBP)\\s+(\\d+(?:,\\d{3})*(?:\\.\\d+)?)", "(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*[～\\-－至]\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)", "(?:RMB|USD|CNY|HKD|JPY|EUR|GBP)\\s+\\d+(?:,\\d{3})*(?:\\.\\d+)?\\s*[～\\-－至]\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)"], replacement: "【金额${index}】", useCaptureGroup: true },
+                { category: "date", patterns: ["\\d{4}\\s{0,2}年\\s{0,2}\\d{1,2}\\s{0,2}月\\s{0,2}\\d{1,2}\\s{0,2}日", "\\d{4}-\\d{1,2}-\\d{1,2}", "\\d{4}/\\d{1,2}/\\d{1,2}", "\\d{1,2}月\\d{1,2}日"], replacement: "【日期${index}】" },
+                { category: "price", patterns: ["人民币\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*[元万元]", "￥\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*元", "\\d+(?:,\\d{3})*(?:\\.\\d+)?[万千万元]", "(?:人民币|￥)\\s*([壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+元整?)", "(?:人民币|￥)\\s*([壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+[角分])", "[壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+元整?", "[壹贰叁肆伍陆柒捌玖零拾佰仟万亿千百十]+[角分]", "(?:RMB|USD|CNY|HKD|JPY|EUR|GBP)\\s+(\\d+(?:,\\d{3})*(?:\\.\\d+)?)", "(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*[～\\-－至]\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)", "(?:RMB|USD|CNY|HKD|JPY|EUR|GBP)\\s+\\d+(?:,\\d{3})*(?:\\.\\d+)?\\s*[～\\-－至]\\s*(\\d+(?:,\\d{3})*(?:\\.\\d+)?)"], replacement: "【金额${index}】", useCaptureGroup: true },
                 { category: "person_name", patterns: ["(?:甲方|乙方|丙方|丁方|戊方|己方|原告方|被告方|委托方|受托方|发包方|承包方|采购方|供应商|卖方|买方|出租方|承租方|转让方|受让方|投资方|被投资方|借款人|贷款人|保证人|抵押人|出质人|收款人|付款人|债务人|债权人|申请人|被申请人|法定代表人|联系人)\\s*[：:]\\s*([\\u4e00-\\u9fa5]{2,20})"], replacement: "【人员${index}】", useCaptureGroup: true },
                 { category: "phone", patterns: ["联系电话\\s*[：:]\\s*(1[3-9]\\d{9})", "联系电话\\s*[：:]\\s*(0\\d{2,3}-?\\d{7,8})", "联系电话\\s*[：:]\\s*\\((0\\d{2,3})\\)\\d{7,8}", "电话\\s*[：:]\\s*(1[3-9]\\d{9})", "电话\\s*[：:]\\s*(0\\d{2,3}-?\\d{7,8})", "手机\\s*[：:]\\s*(1[3-9]\\d{9})"], useCaptureGroup: true, replacement: "【电话${index}】" },
                 { category: "credit_code", patterns: ["统一社会信用代码\\s*[：:]\\s*([0-9A-HJ-NPQRTUWXY]{15,18})", "统一社会信用代码\\s*[：:]\\s*([0-9a-hj-npqrtuwxy]{15,18})"], useCaptureGroup: true, replacement: "【代码-统一社会信用代码${index}】" },
@@ -353,7 +375,7 @@
                 { category: "file_code", patterns: ["合同编号\\s*[：:]\\s*([A-Z0-9\\-]+)", "文件编号\\s*[：:]\\s*([A-Z0-9\\-]+)", "文件号\\s*[：:]\\s*([A-Z0-9\\-]+)" ], useCaptureGroup: true, replacement: "【代码-文件编号${index}】" },
                 { category: "case_number", patterns: ["([（(]\\d{4}[)）][^民刑行知赔]{1,6}?(?:民|刑|行|知|赔)[^初终再监执字第]{0,5}?\\d+[号])(?:[，。、,;．.？])?", "(\\(\\d{4}\\)[^\"]{2,8}?\\d+号)(?:[，。、,;．.？])?", "(（\\d{4}）[^\"]{2,8}?\\d+号)(?:[，。、,;．.？])?", "(\\d{4}年（[A-Z]{1,5}）第\\d+号)(?:[，。、,;．.？])?", "(Case No\\.(?:\\s+[\\d:]+-cv-)?\\d+)(?:[，。、,;．.？])?", "((?:Civil Action) No\\.\\s+[\\d:]+-cv-\\d+)(?:[，。、,;．.？])?", "(\\[\\d{4}\\]\\s+[A-Z]{1,4}\\s+\\d+\\s+\\([A-Z]+\\))(?:[，。、,;．.？])?", "(Az\\.:\\s+\\d+[A-Z]?\\s+\\d+/\\d{2,4})(?:[，。、,;．.？])?", "(RG\\s+\\d+/\\d+)(?:[，。、,;．.？])?"], useCaptureGroup: true, replacement: "【案号${index}】" },
                 { category: "project_name", patterns: ["([\\u4e00-\\u9fa5]{2,10})(项目|工程|系统|平台|计划)", "([\\u4e00-\\u9fa5]{2,10})(研发|建设|实施)项目"], replacement: "【项目${index}】" },
-                { category: "address", patterns: ["(?:地址|住所|住址|注册地址|办公地址|住所地)\\s*[：:]\\s*([\\u4e00-\\u9fa5\\w\\d\\u3000]+)"], useCaptureGroup: true, replacement: "【地址${index}】" }
+                { category: "address", patterns: ["(?:地址|住所|住址|注册地址|办公地址|住所地)\\s*[：:]\\s*([\\u4e00-\\u9fa5\\w\\d\\u3000]+)", "([\\u4e00-\\u9fa5]{2,4}市[\\u4e00-\\u9fa5]{1,4}区[\\u4e00-\\u9fa5\\d]+(?:路|街|道|大道)(?:\\d+|[\\u4e00-\\u9fa5]+)楼\\d{1,4}-\\d{1,4})"], useCaptureGroup: true, replacement: "【地址${index}】" }
             ]
         };
 
@@ -937,22 +959,30 @@
                     }
                     const blacklistedItems = [...LISTS.blacklist];
                     for (const item of blacklistedItems) {
+                        // 兼容旧格式（字符串）和新格式（对象）
+                        const original = typeof item === 'string' ? item : item.original;
+                        const itemType = typeof item === 'string' ? 'blacklist' : (item.type || 'blacklist');
+                        const typeName = TYPE_NAMES[itemType] || TYPE_NAMES.blacklist;
+
                         // 检查黑名单项是否在全文中
-                        if (fullText.includes(item)) {
+                        if (fullText.includes(original)) {
                             // 检查是否已经被识别
-                            if (!this.isDuplicate(item)) {
+                            if (!this.isDuplicate(original)) {
                                 if (this.debugMode) {
-                                    this.debugLog(`  ✓ 强制脱敏（黑名单）: "${item}"`);
+                                    this.debugLog(`  ✓ 强制脱敏（黑名单-${typeName}）: "${original}"`);
                                 }
-                                // 添加到脱敏列表，使用通用替换
+                                // 使用记录的类型生成替换文本
+                                this.typeCounters[itemType] = (this.typeCounters[itemType] || 0) + 1;
+                                const replacement = `【${typeName}${this.typeCounters[itemType]}】`;
+
                                 this.redactions.push({
                                     id: Date.now() + Math.random(),
-                                    original: item,
-                                    replacement: '【敏感信息】',
-                                    type: 'blacklist'
+                                    original: original,
+                                    replacement: replacement,
+                                    type: itemType
                                 });
                             } else if (this.debugMode) {
-                                this.debugLog(`  - 已在识别列表中: "${item}"`);
+                                this.debugLog(`  - 已在识别列表中: "${original}"`);
                             }
                         }
                     }
@@ -1204,7 +1234,7 @@
                 // 询问是否加入黑名单
                 const confirmed = confirm(`"${original}" 已添加到脱敏列表\n\n是否同时添加到黑名单？\n以后遇到相同内容将自动脱敏`);
                 if (confirmed) {
-                    addToBlacklist(original);
+                    addToBlacklist(original, type);  // 传递类型参数
                 }
 
                 this.hideAddModal();
@@ -1277,13 +1307,25 @@
                 // 渲染黑名单
                 const blacklistContainer = document.getElementById('blacklistContainer');
                 if (LISTS.blacklist.size > 0) {
-                    blacklistContainer.innerHTML = [...LISTS.blacklist].map(item => `
+                    blacklistContainer.innerHTML = [...LISTS.blacklist].map(item => {
+                        // 兼容旧格式（字符串）和新格式（对象）
+                        const original = typeof item === 'string' ? item : item.original;
+                        const type = typeof item === 'string' ? 'blacklist' : (item.type || 'blacklist');
+                        const typeName = TYPE_NAMES[type] || TYPE_NAMES.blacklist;
+
+                        return `
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:5px; margin-bottom:5px; background:white; border-radius:4px; border:1px solid #e0e0e0;">
-                            <span style="flex:1; word-break:break-all; padding:5px;">${this.escapeHtml(item)}</span>
-                            <button class="btn-xs btn-danger" onclick="app.removeFromBlacklistUI('${this.escapeHtml(item).replace(/'/g, "\\'")}')"
+                            <div style="flex:1; display:flex; align-items:center; gap:8px;">
+                                <span style="word-break:break-all;">${this.escapeHtml(original)}</span>
+                                <span class="type-${type}" style="display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;background:#f0f0f0;flex-shrink:0;">
+                                    ${typeName}
+                                </span>
+                            </div>
+                            <button class="btn-xs btn-danger" onclick="app.removeFromBlacklistUI('${this.escapeHtml(original).replace(/'/g, "\\'")}')"
                                     style="padding:2px 8px; margin-left:5px; flex-shrink:0;">×</button>
                         </div>
-                    `).join('');
+                        `;
+                    }).join('');
                 } else {
                     blacklistContainer.innerHTML = '<p style="color:#999; text-align:center; padding:20px 0;">暂无黑名单项</p>';
                 }
