@@ -77,6 +77,33 @@
         .mode-icon { font-size: 48px; margin-bottom: 15px; }
         .mode-title { font-size: 18px; font-weight: 600; color: #1e3c72; margin-bottom: 8px; }
         .mode-desc { font-size: 13px; color: #6c757d; }
+        /* 自定义脱敏类型样式 */
+        .btn-add-type { grid-column: 1/-1; padding: 15px; border: 2px dashed #28a745; background: #f8f9fa; border-radius: 8px; cursor: pointer; font-size: 14px; color: #28a745; transition: all 0.3s; }
+        .btn-add-type:hover { background: #28a745; color: white; }
+
+        .custom-types-list { max-height: 350px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 10px; }
+
+        .custom-type-item { padding: 10px; border: 1px solid #e9ecef; border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; }
+        .custom-type-item:hover { background: #f0f4ff; border-color: #28a745; }
+
+        .type-item-header { display: flex; justify-content: space-between; align-items: center; }
+
+        .type-name { font-weight: 500; flex: 1; }
+
+        .item-count { font-size: 12px; color: #999; }
+
+        .type-editor-area { border: 1px solid #ddd; border-radius: 6px; padding: 15px; background: #fafafa; min-height: 300px; }
+
+        .type-items-list { max-height: 200px; overflow-y: auto; margin-top: 10px; }
+
+        .type-item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border: 1px solid #e9ecef; border-radius: 4px; margin-bottom: 5px; }
+
+        .item-text { flex: 1; word-break: break-all; }
+
+        .btn-mini { padding: 2px 6px; font-size: 12px; border-radius: 3px; border: none; cursor: pointer; }
+        .btn-mini.btn-danger { background: #dc3545; color: white; }
+        .btn-mini.btn-danger:hover { background: #c82333; }
+        .type-group-title { grid-column: 1/-1; padding: 8px 12px; font-weight: 600; color: #1e3c72; font-size: 13px; text-align: center; background: #f0f4ff; border-radius: 4px; margin: 5px 0; }
     </style>
 </head>
 <body>
@@ -192,6 +219,7 @@
             <div class="form-group">
                 <label>脱敏类型</label>
                 <div class="type-selector" id="typeSelector">
+                    <div class="type-group-title">默认类型</div>
                     <div class="type-option" data-type="id_card">身份证号</div>
                     <div class="type-option" data-type="organization">组织机构</div>
                     <div class="type-option" data-type="date">日期</div>
@@ -203,6 +231,8 @@
                     <div class="type-option" data-type="project_name">项目名称</div>
                     <div class="type-option" data-type="address">地址</div>
                     <div class="type-option" data-type="sensitive">敏感信息</div>
+                    <div class="type-group-title">自定义类型</div>
+                    <button class="btn-add-type" onclick="app.showCustomTypeModal()">➕ 添加脱敏类型</button>
                 </div>
             </div>
             <div style="text-align:right; margin-top:20px;">
@@ -223,6 +253,7 @@
             <div style="text-align:right; margin-top:20px;">
                 <button class="btn btn-secondary" onclick="app.hideExportModal()">取消</button>
                 <button class="btn btn-success" onclick="app.exportResults()">导出</button>
+            </div>
             </div>
         </div>
     </div>
@@ -266,12 +297,50 @@
         </div>
     </div>
 
+    <!-- 自定义脱敏类型管理模态框 -->
+    <div class="modal" id="customTypeModal">
+        <div class="modal-content" style="max-width:900px;">
+            <h3 style="margin-bottom:20px;">📁 自定义脱敏类型管理</h3>
+            <p style="color:#6c757d; margin-bottom:15px;">创建自定义脱敏类型，批量输入精准匹配内容（每行一个）</p>
+
+            <div style="display:grid; grid-template-columns: 280px 1fr; gap:20px; height:500px;">
+                <!-- 左侧：类型列表 -->
+                <div>
+                    <h4 style="margin-bottom:10px;">我的类型</h4>
+                    <div class="custom-types-list" id="customTypesList">
+                        <p style="color:#999; text-align:center; padding:20px 0;">暂无自定义类型<br>点击下方按钮添加</p>
+                    </div>
+                    <button class="btn btn-success" style="width:100%; margin-top:10px;" onclick="app.promptAddType()">
+                        ➕ 新建类型
+                    </button>
+                </div>
+
+                <!-- 右侧：编辑区域 -->
+                <div>
+                    <div id="typeEditorArea" style="height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#999;">
+                        <div style="text-align:center;">
+                            <div style="font-size:48px; margin-bottom:10px;">📝</div>
+                            <p>← 选择一个类型开始编辑</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align:right; margin-top:20px; border-top:1px solid #ddd; padding-top:15px;">
+                <button class="btn btn-secondary" onclick="app.hideCustomTypeModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ==================== 白名单/黑名单管理 ====================
         const LISTS = {
             whitelist: new Set(),  // 白名单：不脱敏的内容
-            blacklist: new Set()   // 黑名单：强制脱敏的内容（存储格式: { original, type } 对象）
+            blacklist: new Set(),   // 黑名单：强制脱敏的内容（存储格式: { original, type } 对象）
+            customTypes: new Map()  // 自定义类型：Map<typeName, Set<{original, id}>>
         };
+
+        let currentEditingType = null;
 
         // 从 localStorage 加载
         function loadLists() {
@@ -308,6 +377,80 @@
                 console.error('保存白名单/黑名单失败:', e);
             }
         }
+
+        // ==================== 自定义脱敏类型管理 ====================
+        // 加载自定义类型
+        var loadCustomTypes = function() {
+            try {
+                const data = localStorage.getItem('redaction_customTypes');
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    // 将JSON对象转换为Map，每个值从数组转换为Set
+                    LISTS.customTypes = new Map(Object.entries(parsed).map(([k, v]) => [k, new Set(v)]));
+                }
+                console.log('自定义类型已加载:', [...LISTS.customTypes.keys()]);
+                // 初始化类型选择器
+                initTypeSelector();
+            } catch (e) {
+                console.error('加载自定义类型失败:', e);
+            }
+        };
+
+        // 保存自定义类型
+        var saveCustomTypes = function() {
+            try {
+                // 将Map转换为JSON对象，Set转换为数组
+                const obj = {};
+                LISTS.customTypes.forEach((value, key) => {
+                    obj[key] = [...value];
+                });
+                localStorage.setItem('redaction_customTypes', JSON.stringify(obj));
+                console.log('自定义类型已保存');
+            } catch (e) {
+                console.error('保存自定义类型失败:', e);
+            }
+        };
+
+        // 初始化类型选择器（添加自定义类型选项）
+        var initTypeSelector = function() {
+            const selector = document.getElementById('typeSelector');
+            if (!selector) return;
+
+            // 移除旧的自定义类型选项
+            const existingCustom = selector.querySelectorAll('.type-option[data-type^="custom-"]');
+            existingCustom.forEach(el => el.remove());
+
+            // 如果没有自定义类型，直接返回
+            if (LISTS.customTypes.size === 0) return;
+
+            // 找到"自定义类型"分组标题
+            const customGroupTitle = selector.querySelector('.type-group-title:last-of-type');
+            const insertAfterElement = customGroupTitle || selector.lastElementChild;
+
+            // 添加自定义类型选项
+            const fragment = document.createDocumentFragment();
+            [...LISTS.customTypes.keys()].forEach(typeName => {
+                const div = document.createElement('div');
+                div.className = 'type-option';
+                div.dataset.type = 'custom-' + typeName;
+                div.textContent = typeName;
+                div.onclick = function() {
+                    // 移除其他选中状态
+                    document.querySelectorAll('.type-option').forEach(el => el.classList.remove('selected'));
+                    div.classList.add('selected');
+                };
+                fragment.appendChild(div);
+            });
+
+            if (insertAfterElement) {
+                insertAfterElement.after(fragment);
+            } else {
+                selector.appendChild(fragment);
+            }
+        };
+
+        // 页面加载时加载自定义类型
+        loadCustomTypes();
 
         // 检查是否在白名单中
         function isInWhitelist(value) {
@@ -990,6 +1133,43 @@
                     }
                 }
 
+                // 处理自定义脱敏类型
+                if (LISTS.customTypes.size > 0) {
+                    if (this.debugMode) {
+                        this.debugLog('=== 处理自定义脱敏类型 ===');
+                    }
+                    for (const [typeName, items] of LISTS.customTypes) {
+                        if (this.debugMode) {
+                            this.debugLog(`处理类型: ${typeName} (${items.size} 项)`);
+                        }
+                        for (const item of items) {
+                            const original = item.original;
+                            // 检查是否在全文中
+                            const index = fullText.indexOf(original);
+                            if (index !== -1) {
+                                // 检查是否已经被识别
+                                if (!this.isDuplicate(original)) {
+                                    if (this.debugMode) {
+                                        this.debugLog(`  ✓ 匹配: "${original}" -> 【${typeName}】`);
+                                    }
+                                    this.typeCounters['custom-' + typeName] = (this.typeCounters['custom-' + typeName] || 0) + 1;
+                                    const replacement = `【${typeName}${this.typeCounters['custom-' + typeName]}】`;
+
+                                    this.redactions.push({
+                                        id: Date.now() + Math.random(),
+                                        original: original,
+                                        replacement: replacement,
+                                        type: 'custom-' + typeName,
+                                        location: '自定义类型'
+                                    });
+                                } else if (this.debugMode) {
+                                    this.debugLog(`  - 已在识别列表中: "${original}"`);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 this.updateStats();
             }
 
@@ -1064,15 +1244,19 @@
 
                 const list = document.getElementById('redactionList');
                 if (this.redactions.length === 0) { list.innerHTML = '<p style="color:#999;text-align:center;">暂无脱敏项</p>'; return; }
-                list.innerHTML = this.redactions.map(r => `
+                list.innerHTML = this.redactions.map(r => {
+                    // 处理自定义类型的类型名称显示
+                    const typeName = r.type.startsWith('custom-') ? r.type.replace('custom-', '') : (TYPE_NAMES[r.type] || r.type);
+                    return `
                     <div class="redaction-item" id="redaction-item-${r.id}" onclick="app.scrollToOriginal(${r.id})">
-                        <span class="type-${r.type}" style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;">${TYPE_NAMES[r.type]}</span>
+                        <span class="type-${r.type}" style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:11px;">${this.escapeHtml(typeName)}</span>
                         <div class="redaction-original">原文: ${r.original}</div>
                         <div class="redaction-replacement">替换: ${r.replacement}</div>
                         <div class="redaction-location" onclick="event.stopPropagation();app.editRedaction(${r.id})" style="cursor:pointer;">点击修改</div>
                         <div class="redaction-actions"><button class="btn-xs btn-danger" onclick="event.stopPropagation();app.deleteRedaction(${r.id})">删除</button></div>
                     </div>
-                `).join('');
+                    `;
+                }).join('');
                 document.getElementById('redactionCount').textContent = this.redactions.length + ' 项';
 
                 const preview = document.getElementById('redactedPreview');
@@ -1230,13 +1414,17 @@
                 if (!selected) { alert('请选择类型'); return; }
                 const type = selected.dataset.type;
                 this.typeCounters[type] = (this.typeCounters[type] || 0) + 1;
-                const replacement = prompt('替换文本（留空自动生成）') || `【${TYPE_NAMES[type]}${this.typeCounters[type]}】`;
+                // 处理自定义类型的类型名称
+                const typeName = type.startsWith('custom-') ? type.replace('custom-', '') : TYPE_NAMES[type];
+                const replacement = prompt('替换文本（留空自动生成）') || `【${typeName}${this.typeCounters[type]}】`;
                 this.redactions.push({ id: Date.now(), original, replacement, type, location: '手动添加' });
 
-                // 询问是否加入黑名单
-                const confirmed = confirm(`"${original}" 已添加到脱敏列表\n\n是否同时添加到黑名单？\n以后遇到相同内容将自动脱敏`);
-                if (confirmed) {
-                    addToBlacklist(original, type);  // 传递类型参数
+                // 只对默认类型询问是否加入黑名单，自定义类型跳过
+                if (!type.startsWith('custom-')) {
+                    const confirmed = confirm(`"${original}" 已添加到脱敏列表\n\n是否同时添加到黑名单？\n以后遇到相同内容将自动脱敏`);
+                    if (confirmed) {
+                        addToBlacklist(original, type);  // 传递类型参数
+                    }
                 }
 
                 this.hideAddModal();
@@ -1361,6 +1549,150 @@
             removeFromBlacklistUI(item) {
                 removeFromBlacklist(item);
                 this.renderLists();
+            }
+
+            // ==================== 自定义脱敏类型管理方法 ====================
+
+            showCustomTypeModal() {
+                this.renderCustomTypesList();
+                document.getElementById('customTypeModal').classList.add('show');
+            }
+
+            hideCustomTypeModal() {
+                document.getElementById('customTypeModal').classList.remove('show');
+            }
+
+            renderCustomTypesList() {
+                const container = document.getElementById('customTypesList');
+                if (LISTS.customTypes.size === 0) {
+                    container.innerHTML = '<p style="color:#999; text-align:center; padding:20px 0;">暂无自定义类型<br>点击下方按钮添加</p>';
+                    return;
+                }
+
+                container.innerHTML = [...LISTS.customTypes.keys()].map(typeName => {
+                    const items = LISTS.customTypes.get(typeName);
+                    const count = items ? items.size : 0;
+                    return `
+                        <div class="custom-type-item" onclick="app.selectTypeForEdit('${this.escapeHtml(typeName).replace(/'/g, "\\'")}')">
+                            <div class="type-item-header">
+                                <span class="type-name">${this.escapeHtml(typeName)}</span>
+                                <button class="btn-xs btn-danger" onclick="event.stopPropagation(); app.deleteCustomType('${this.escapeHtml(typeName).replace(/'/g, "\\'")}')"
+                                        style="padding:4px 8px;">×</button>
+                            </div>
+                            <div class="item-count">（${count}项）</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            promptAddType() {
+                const typeName = prompt('请输入新的脱敏类型名称：');
+                if (!typeName || !typeName.trim()) return;
+
+                const trimmedName = typeName.trim();
+                if (LISTS.customTypes.has(trimmedName)) {
+                    alert('类型 "' + trimmedName + '" 已存在！');
+                    return;
+                }
+
+                LISTS.customTypes.set(trimmedName, new Set());
+                saveCustomTypes();
+                this.renderCustomTypesList();
+                initTypeSelector();
+            }
+
+            selectTypeForEdit(typeName) {
+                currentEditingType = typeName;
+                const items = LISTS.customTypes.get(typeName) || new Set();
+
+                document.getElementById('typeEditorArea').innerHTML = `
+                    <h4 style="margin-bottom:10px;">编辑: <span style="color:#28a745;">${this.escapeHtml(typeName)}</span></h4>
+                    <div class="form-group">
+                        <label>精准匹配内容（每行一个）</label>
+                        <textarea id="editingTypeItems" rows="10"
+                            placeholder="输入内容，每行一个" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;"></textarea>
+                    </div>
+                    <div style="margin-top:15px;">
+                        <button class="btn btn-success" onclick="app.saveTypeItems()">💾 保存内容</button>
+                    </div>
+                    <div id="typeItemsList" style="margin-top:15px; max-height:200px; overflow-y:auto;">
+                        ${[...items].map(item => `
+                            <div class="type-item-row" data-item-id="${item.id}">
+                                <span class="item-text">${this.escapeHtml(item.original)}</span>
+                                <button class="btn-mini btn-danger" onclick="event.stopPropagation(); app.deleteTypeItem('${item.id}')">✕</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            saveTypeItems() {
+                if (!currentEditingType) return;
+
+                const textarea = document.getElementById('editingTypeItems');
+                const content = textarea.value.trim();
+                if (!content) return;
+
+                // 获取已存在的项
+                const existingItems = LISTS.customTypes.get(currentEditingType) || new Set();
+                const newItems = new Set([...existingItems]);
+
+                // 解析新输入的行
+                const lines = content.split('\n').map(l => l.trim()).filter(l => l);
+                let addedCount = 0;
+                const now = Date.now();
+
+                lines.forEach(line => {
+                    // 检查是否已存在
+                    const exists = [...newItems].some(item => item.original === line);
+                    if (!exists) {
+                        newItems.add({ original: line, id: now + Math.random() });
+                        addedCount++;
+                    }
+                });
+
+                LISTS.customTypes.set(currentEditingType, newItems);
+                saveCustomTypes();
+                this.renderCustomTypesList();
+                this.selectTypeForEdit(currentEditingType);
+
+                if (addedCount > 0) {
+                    console.log(`添加了 ${addedCount} 个新项到类型 "${currentEditingType}"`);
+                }
+
+                // 清空textarea供下次输入
+                textarea.value = '';
+            }
+
+            deleteTypeItem(itemId) {
+                if (!currentEditingType) return;
+
+                const items = LISTS.customTypes.get(currentEditingType);
+                if (!items) return;
+
+                const filtered = [...items].filter(item => item.id != itemId);
+                LISTS.customTypes.set(currentEditingType, new Set(filtered));
+                saveCustomTypes();
+                this.renderCustomTypesList();
+                this.selectTypeForEdit(currentEditingType);
+            }
+
+            deleteCustomType(typeName) {
+                if (!confirm('确定要删除类型 "' + typeName + '" 吗？\n\n该类型下的所有内容也将被删除。')) return;
+
+                LISTS.customTypes.delete(typeName);
+                saveCustomTypes();
+
+                // 重置编辑区域
+                document.getElementById('typeEditorArea').innerHTML = `
+                    <div style="text-align:center;">
+                        <div style="font-size:48px; margin-bottom:10px;">📝</div>
+                        <p>← 选择一个类型开始编辑</p>
+                    </div>
+                `;
+
+                this.renderCustomTypesList();
+                initTypeSelector();
             }
 
             /**
@@ -1626,7 +1958,9 @@
                     if (r.type === 'email') {
                         original = `\`${original}\``;
                     }
-                    md += `| ${i+1} | ${original} | ${r.replacement} | ${TYPE_NAMES[r.type]} |\n`;
+                    // 处理自定义类型的类型名称显示
+                    const typeName = r.type.startsWith('custom-') ? r.type.replace('custom-', '') : (TYPE_NAMES[r.type] || r.type);
+                    md += `| ${i+1} | ${original} | ${r.replacement} | ${typeName} |\n`;
                 });
 
                 // 使用docx文件名作为前缀，例如：合同.docx -> 合同_mapping.md
