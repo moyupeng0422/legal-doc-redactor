@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>法律文件脱敏处理工具 - 使用指南</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            line-height: 1.7;
+            color: #24292f;
+            background: linear-gradient(135deg, #f6f8fa 0%, #eaeef2 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 920px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            overflow: hidden;
+            border: 1px solid #d0d7de;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #0969da 0%, #238636 100%);
+            color: white;
+            padding: 50px 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header p {
+            opacity: 0.95;
+            font-size: 1.1em;
+        }
+
+        .header .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .content {
+            padding: 35px 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #0969da;
+            font-size: 1.6em;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #d0d7de;
+            display: flex;
+            align-items: center;
+        }
+
+        .section h2::before {
+            content: attr(data-icon);
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+        .section h3 {
+            color: #24292f;
+            font-size: 1.15em;
+            margin: 18px 0 10px;
+            font-weight: 600;
+        }
+
+        .step {
+            background: #f6f8fa;
+            border-left: 4px solid #0969da;
+            padding: 16px 18px;
+            margin: 16px 0;
+            border-radius: 0 6px 6px 0;
+            transition: transform 0.2s;
+        }
+
+        .step:hover {
+            transform: translateX(2px);
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #0969da;
+            color: white;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            margin-right: 10px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .tip {
+            background: #fff8c5;
+            border-left: 4px solid #d29922;
+            padding: 16px 18px;
+            margin: 16px 0;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .tip strong {
+            color: #9a6700;
+        }
+
+        .info-box {
+            background: #ddf4ff;
+            border-left: 4px solid #0969da;
+            padding: 16px 18px;
+            margin: 16px 0;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .success-box {
+            background: #dafbe1;
+            border-left: 4px solid #238636;
+            padding: 16px 18px;
+            margin: 16px 0;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .warning-box {
+            background: #ffebe9;
+            border-left: 4px solid #cf222e;
+            padding: 16px 18px;
+            margin: 16px 0;
+            border-radius: 0 6px 6px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #d0d7de;
+        }
+
+        table th,
+        table td {
+            border: 1px solid #d0d7de;
+            padding: 12px 14px;
+            text-align: left;
+        }
+
+        table th {
+            background: linear-gradient(135deg, #0969da 0%, #238636 100%);
+            color: white;
+            font-weight: 600;
+        }
+
+        table tr:nth-child(even) {
+            background: #f6f8fa;
+        }
+
+        table tr:hover {
+            background: #eaeef2;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .feature-card {
+            background: #f6f8fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: #0969da;
+            background: white;
+        }
+
+        .feature-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .highlight {
+            background: #fff8c5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+
+        code {
+            background: #f6f8fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
+            color: #cf222e;
+            font-size: 0.9em;
+            border: 1px solid #d0d7de;
+        }
+
+        ul {
+            padding-left: 25px;
+        }
+
+        ul li {
+            margin: 8px 0;
+        }
+
+        .footer {
+            background: #24292f;
+            padding: 25px;
+            text-align: center;
+            color: #f0f6fc;
+        }
+
+        .footer p {
+            margin: 5px 0;
+        }
+
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #0969da 0%, #238636 100%);
+            color: white;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 3px 12px rgba(9, 105, 218, 0.3);
+            opacity: 0;
+            transition: opacity 0.3s;
+            text-decoration: none;
+            font-size: 1.5em;
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+        }
+
+        .back-to-top:hover {
+            transform: translateY(-2px);
+        }
+
+        .mode-compare {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .mode-card {
+            background: #f6f8fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #d0d7de;
+        }
+
+        .mode-card.active {
+            border-color: #0969da;
+            background: white;
+        }
+
+        .mode-card.restore h4 {
+            color: #238636;
+        }
+
+        .mode-card h4 {
+            color: #0969da;
+            margin-bottom: 10px;
+            font-size: 1.15em;
+        }
+
+        .mode-card p {
+            font-size: 0.95em;
+            margin: 8px 0;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: 25px 20px;
+            }
+            .header h1 {
+                font-size: 1.6em;
+            }
+            .section h2 {
+                font-size: 1.3em;
+            }
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+            .mode-compare {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>法律文件脱敏处理工具</h1>
+            <p>使用指南 v1.1.0</p>
+            <span class="badge">完全离线 · 数据安全 · 零依赖</span>
+        </div>
+
+        <div class="content">
+            <!-- 快速开始 -->
+            <div class="section">
+                <h2 data-icon=""> 快速开始</h2>
+
+                <div class="success-box">
+                    <strong>零依赖安装：</strong>双击 <code>index.html</code> 文件即可启动，无需安装任何软件！
+                </div>
+
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon"></div>
+                        <h3>Windows</h3>
+                        <p>双击 index.html</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"></div>
+                        <h3>macOS</h3>
+                        <p>双击 index.html</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"></div>
+                        <h3>Linux</h3>
+                        <p>双击 index.html</p>
+                    </div>
+                </div>
+
+                <h3>浏览器要求</h3>
+                <p>推荐使用 Chrome、Edge、Firefox 或 Safari 的最新版本</p>
+            </div>
+
+            <!-- 模式选择 -->
+            <div class="section">
+                <h2 data-icon=""> 模式选择</h2>
+
+                <div class="info-box">
+                    <strong>重要：</strong>打开工具后，您会首先看到模式选择界面。请根据您的使用场景选择合适的模式。
+                </div>
+
+                <div class="mode-compare">
+                    <div class="mode-card active">
+                        <h4> 脱敏模式</h4>
+                        <p><strong>用途：</strong>将敏感信息替换为【X】标记</p>
+                        <p><strong>场景：</strong></p>
+                        <ul>
+                            <li>需要对外分享法律文件</li>
+                            <li>保护当事人隐私</li>
+                            <li>隐藏商业敏感信息</li>
+                        </ul>
+                    </div>
+
+                    <div class="mode-card restore">
+                        <h4> 还原模式</h4>
+                        <p><strong>用途：</strong>将脱敏稿还原为原文</p>
+                        <p><strong>场景：</strong></p>
+                        <ul>
+                            <li>外部审核完成后需要还原</li>
+                            <li>AI审核完成后需要还原</li>
+                            <li>需要查看脱敏前的原始内容</li>
+                            <li>保留修订和批注意见</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="tip">
+                    <strong>提示：</strong>两种模式可以配合使用：先使用脱敏模式生成脱敏稿，经外部或AI审核后，再使用还原模式恢复原文。
+                </div>
+            </div>
+
+            <!-- 脱敏模式 -->
+            <div class="section">
+                <h2 data-icon=""> 脱敏模式</h2>
+
+                <h3>步骤 1：上传文件</h3>
+                <div class="step">
+                    <span class="step-number">1</span>
+                    将需要脱敏的 <code>.docx</code> 文件拖入窗口，或点击上传按钮选择文件
+                </div>
+
+                <h3>步骤 2：自动识别</h3>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    工具会自动识别 <span class="highlight">15 类敏感信息</span>，并用黄色高亮显示
+                </div>
+
+                <h3>步骤 3：编辑调整（双向联动）</h3>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <p><strong>三栏预览界面：</strong></p>
+                    <ul>
+                        <li><strong>原文预览</strong> - 显示原始文档，黄色高亮已识别内容</li>
+                        <li><strong>脱敏项列表</strong> - 查看所有识别项，可删除误识别内容</li>
+                        <li><strong>脱敏预览</strong> - 实时显示脱敏后的效果</li>
+                    </ul>
+                    <p><strong>双向联动：</strong></p>
+                    <ul>
+                        <li>点击原文预览的黄色高亮，脱敏项列表自动滚动到对应项</li>
+                        <li>点击脱敏项列表中的项，原文预览自动滚动到对应位置</li>
+                    </ul>
+                </div>
+
+                <h3>步骤 4：自定义脱敏（选中文本自动触发）</h3>
+                <div class="step">
+                    <span class="step-number">4</span>
+                    <p><strong>自动弹出功能：</strong>在原文预览区选中文本后，会<strong>自动弹出</strong>自定义脱敏窗口，无需手动点击按钮</p>
+                    <p><strong>操作流程：</strong></p>
+                    <ul>
+                        <li>在原文预览区选中要脱敏的文本</li>
+                        <li>自动弹出窗口，选择脱敏类型（如人名、日期、金额等）</li>
+                        <li>确认添加后，会询问<strong>"是否加入黑名单"</strong></li>
+                    </ul>
+                </div>
+
+                <h3>步骤 5：白名单/黑名单管理</h3>
+                <div class="step">
+                    <span class="step-number">5</span>
+                    <p>点击"白名单/黑名单"按钮打开管理界面：</p>
+                    <ul>
+                        <li><strong>白名单</strong> - 添加后不会被脱敏，适合公司名称、项目名称等固定词汇</li>
+                        <li><strong>黑名单</strong> - 添加后强制脱敏，并记录类型信息。复用时会自动显示【人名1】【日期1】等类型标签</li>
+                    </ul>
+                    <div class="info-box" style="margin-top: 10px;">
+                        <strong>优先级规则：</strong>白名单 > 黑名单 > 默认规则
+                    </div>
+                </div>
+
+                <h3>步骤 6：导出文件</h3>
+                <div class="step">
+                    <span class="step-number">6</span>
+                    <ul>
+                        <li>点击"导出"按钮，选择导出类型</li>
+                        <li><strong>脱敏文件.docx</strong> - 保留原格式的脱敏文档</li>
+                        <li><strong>替换比对.md</strong> - <strong>务必保存</strong>，用于后续还原</li>
+                    </ul>
+                </div>
+
+                <div class="warning-box">
+                    <strong>删除脱敏项时：</strong>会自动询问<strong>"是否加入白名单"</strong>，方便后续不再误识别该内容
+                </div>
+
+                <div class="tip">
+                    <strong>提示：</strong>脱敏文档会保留原文的所有格式（字体、段落、表格等）
+                </div>
+            </div>
+
+            <!-- 还原模式 -->
+            <div class="section">
+                <h2 data-icon=""> 还原模式</h2>
+
+                <div class="info-box">
+                    <strong>使用场景：</strong>脱敏文档经外部或 AI 审核后，可还原为原文并保留所有修订和批注
+                </div>
+
+                <h3>步骤 1：切换到还原模式</h3>
+                <div class="step">
+                    <span class="step-number">1</span>
+                    点击顶部的"还原"标签页
+                </div>
+
+                <h3>步骤 2：上传文件</h3>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <ul>
+                        <li>拖入脱敏后的文档（<code>.docx</code>）</li>
+                        <li>拖入"比对词.md"文件（脱敏时生成）</li>
+                    </ul>
+                </div>
+
+                <h3>步骤 3：执行还原</h3>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    点击"执行还原"按钮，自动下载还原后的文档
+                </div>
+
+                <div class="warning-box">
+                    <strong>注意：</strong>还原时文档中的修订和批注会完整保留
+                </div>
+            </div>
+
+            <!-- 调试功能 -->
+            <div class="section">
+                <h2 data-icon=""> 调试功能</h2>
+
+                <div class="info-box">
+                    <strong>重要说明：</strong>调试功能不是独立模式，而是可以在脱敏模式和还原模式下启用的功能开关。勾选"启用调试模式"复选框后即可使用。
+                </div>
+
+                <h3>脱敏模式下的调试</h3>
+                <p>在脱敏模式下启用调试，可以查看脱敏处理的详细信息：</p>
+                <div class="step">
+                    <ul>
+                        <li><strong>识别详情</strong> - 显示识别到的每一处敏感信息及其位置</li>
+                        <li><strong>脱敏规则</strong> - 显示应用的脱敏规则类型</li>
+                        <li><strong>白名单/黑名单匹配</strong> - 显示哪些内容被白名单过滤或黑名单强制脱敏</li>
+                        <li><strong>处理时间戳</strong> - 显示每一步的处理时间</li>
+                    </ul>
+                </div>
+
+                <h3>还原模式下的调试</h3>
+                <p>在还原模式下启用调试，可以查看还原处理的详细信息：</p>
+                <div class="step">
+                    <ul>
+                        <li><strong>还原进度</strong> - 显示还原操作的实时进度</li>
+                        <li><strong>替换日志</strong> - 显示每个【X】标记被替换为原文的过程</li>
+                        <li><strong>错误信息</strong> - 显示比对词不匹配、无法找到对应项等错误</li>
+                    </ul>
+                </div>
+
+                <h3>导出调试日志</h3>
+                <div class="step">
+                    <span class="step-number">1</span>
+                    点击"导出日志"按钮，可将调试日志保存为 <code>.txt</code> 文件
+                </div>
+
+                <div class="tip">
+                    <strong>查看浏览器控制台：</strong>按 F12 打开开发者工具，切换到 Console 标签，可查看更详细的调试信息
+                </div>
+            </div>
+
+            <!-- 支持的脱敏类型 -->
+            <div class="section">
+                <h2 data-icon=""> 支持的脱敏类型</h2>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>类型</th>
+                            <th>替换示例</th>
+                            <th>识别示例</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>人名</td><td>【人名1】</td><td>张三、李四</td></tr>
+                        <tr><td>公司名称</td><td>【公司1】</td><td>XX科技有限公司</td></tr>
+                        <tr><td>日期</td><td>【日期1】</td><td>2024年1月1日</td></tr>
+                        <tr><td>金额</td><td>【金额1】</td><td>10万元</td></tr>
+                        <tr><td>电话</td><td>【电话1】</td><td>13800138000</td></tr>
+                        <tr><td>邮箱</td><td>【邮箱1】</td><td>example@email.com</td></tr>
+                        <tr><td>身份证号</td><td>【身份证1】</td><td>110101199001011234</td></tr>
+                        <tr><td>银行账号</td><td>【账号1】</td><td>6222XXXXXXXXXXXX</td></tr>
+                        <tr><td>信用代码</td><td>【信用代码1】</td><td>91XXXXXXXXXXXXXXX</td></tr>
+                        <tr><td>案号</td><td>【案号1】</td><td>（2023）京01民初123号</td></tr>
+                        <tr><td>专利申请号</td><td>【专利号1】</td><td>CN202310XXXXXX</td></tr>
+                        <tr><td>文件编号</td><td>【编号1】</td><td>(2023)京01民初123号</td></tr>
+                        <tr><td>项目名称</td><td>【项目1】</td><td>XX项目</td></tr>
+                        <tr><td>地址</td><td>【地址1】</td><td>北京市XX区XX路</td></tr>
+                        <tr><td>组织机构码</td><td>【机构码1】</td><td>XXXXXXXX-X</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 常见问题 -->
+            <div class="section">
+                <h2 data-icon=""> 常见问题</h2>
+
+                <h3>Q: 数据会上传到服务器吗？</h3>
+                <p><strong>A:</strong> 不会。所有处理都在您的浏览器本地完成，完全离线，数据不会离开您的电脑。</p>
+
+                <h3>Q: 脱敏后的文档格式会乱吗？</h3>
+                <p><strong>A:</strong> 不会。工具会保留原文的所有格式（字体、段落、表格等）。</p>
+
+                <h3>Q: 如何保存自定义规则？</h3>
+                <p><strong>A:</strong> 在"白名单/黑名单"中添加的规则会自动保存到浏览器，下次打开工具时自动加载。</p>
+
+                <h3>Q: 支持 Mac/Linux 吗？</h3>
+                <p><strong>A:</strong> 支持。所有系统都是双击 <code>index.html</code> 即可使用。</p>
+
+                <h3>Q: 如果不小心删除了比对词.md文件怎么办？</h3>
+                <p><strong>A:</strong> 比对词.md文件是还原的关键，无法重新生成。请务必妥善保存该文件。</p>
+
+                <h3>Q: 可以批量处理多个文件吗？</h3>
+                <p><strong>A:</strong> 当前版本一次只能处理一个文件。如需批量处理，请逐个文件进行脱敏。</p>
+
+                <h3>Q: 选中文本后没有自动弹出自定义窗口？</h3>
+                <p><strong>A:</strong> 请确保在"原文预览"区域选中文本，而不是"脱敏预览"区域。自定义功能仅在原文预览区可用。</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><strong>法律文件脱敏处理工具 v1.1.0</strong></p>
+            <p>完全离线 · 数据不上传 · MIT License</p>
+        </div>
+    </div>
+
+    <a href="#" class="back-to-top" title="回到顶部"></a>
+
+    <script>
+        // 回到顶部按钮
+        const backToTop = document.querySelector('.back-to-top');
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 300) {
+                backToTop.classList.add('visible');
+            } else {
+                backToTop.classList.remove('visible');
+            }
+        });
+
+        backToTop.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    </script>
+</body>
+</html>

@@ -202,7 +202,6 @@
                     <div class="type-option" data-type="credit_code">代码</div>
                     <div class="type-option" data-type="project_name">项目名称</div>
                     <div class="type-option" data-type="address">地址</div>
-                    <div class="type-option" data-type="sensitive">敏感信息</div>
                 </div>
             </div>
             <div style="text-align:right; margin-top:20px;">
@@ -376,12 +375,11 @@
                 { category: "file_code", patterns: ["合同编号\\s*[：:]\\s*([A-Z0-9\\-]+)", "文件编号\\s*[：:]\\s*([A-Z0-9\\-]+)", "文件号\\s*[：:]\\s*([A-Z0-9\\-]+)" ], useCaptureGroup: true, replacement: "【代码-文件编号${index}】" },
                 { category: "case_number", patterns: ["([（(]\\d{4}[)）][^民刑行知赔]{1,6}?(?:民|刑|行|知|赔)[^初终再监执字第]{0,5}?\\d+[号])(?:[，。、,;．.？])?", "(\\(\\d{4}\\)[^\"]{2,8}?\\d+号)(?:[，。、,;．.？])?", "(（\\d{4}）[^\"]{2,8}?\\d+号)(?:[，。、,;．.？])?", "(\\d{4}年（[A-Z]{1,5}）第\\d+号)(?:[，。、,;．.？])?", "(Case No\\.(?:\\s+[\\d:]+-cv-)?\\d+)(?:[，。、,;．.？])?", "((?:Civil Action) No\\.\\s+[\\d:]+-cv-\\d+)(?:[，。、,;．.？])?", "(\\[\\d{4}\\]\\s+[A-Z]{1,4}\\s+\\d+\\s+\\([A-Z]+\\))(?:[，。、,;．.？])?", "(Az\\.:\\s+\\d+[A-Z]?\\s+\\d+/\\d{2,4})(?:[，。、,;．.？])?", "(RG\\s+\\d+/\\d+)(?:[，。、,;．.？])?"], useCaptureGroup: true, replacement: "【案号${index}】" },
                 { category: "project_name", patterns: ["([\\u4e00-\\u9fa5]{2,10})(项目|工程|系统|平台|计划)", "([\\u4e00-\\u9fa5]{2,10})(研发|建设|实施)项目"], replacement: "【项目${index}】" },
-                { category: "address", patterns: ["(?:地址|住所|住址|注册地址|办公地址|住所地)\\s*[：:]\\s*([\\u4e00-\\u9fa5\\w\\d\\u3000]+)", "([\\u4e00-\\u9fa5]{2,4}市[\\u4e00-\\u9fa5]{1,4}区[\\u4e00-\\u9fa5\\d]+(?:路|街|道|大道)(?:\\d+|[\\u4e00-\\u9fa5]+)楼\\d{1,4}-\\d{1,4})"], useCaptureGroup: true, replacement: "【地址${index}】" },
-                { category: "sensitive", patterns: [], replacement: "【敏感信息${index}】" }
+                { category: "address", patterns: ["(?:地址|住所|住址|注册地址|办公地址|住所地)\\s*[：:]\\s*([\\u4e00-\\u9fa5\\w\\d\\u3000]+)", "([\\u4e00-\\u9fa5]{2,4}市[\\u4e00-\\u9fa5]{1,4}区[\\u4e00-\\u9fa5\\d]+(?:路|街|道|大道)(?:\\d+|[\\u4e00-\\u9fa5]+)楼\\d{1,4}-\\d{1,4})"], useCaptureGroup: true, replacement: "【地址${index}】" }
             ]
         };
 
-        const TYPE_NAMES = { id_card: "身份证号", organization: "组织机构", date: "日期", price: "金额", person_name: "人名", phone: "联系电话", email: "联系邮箱", credit_code: "代码-统一社会信用代码", bank_account: "账号", org_code: "代码-组织机构代码", patent_code: "代码-专利申请号", file_code: "代码-文件编号", case_number: "案号", project_name: "项目名称", address: "地址", blacklist: "黑名单", sensitive: "敏感信息" };
+        const TYPE_NAMES = { id_card: "身份证号", organization: "组织机构", date: "日期", price: "金额", person_name: "人名", phone: "联系电话", email: "联系邮箱", credit_code: "代码-统一社会信用代码", bank_account: "账号", org_code: "代码-组织机构代码", patent_code: "代码-专利申请号", file_code: "代码-文件编号", case_number: "案号", project_name: "项目名称", address: "地址", blacklist: "敏感信息" };
 
         class RedactionApp {
             constructor() {
