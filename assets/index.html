@@ -488,8 +488,8 @@
         // 检查内容是否被白名单中的任何项覆盖（用于优先级：白名单 > 脱敏类别）
         function isCoveredByWhitelist(content) {
             for (const whitelistItem of LISTS.whitelist) {
-                // 如果脱敏内容包含白名单项，或白名单项包含脱敏内容，则被覆盖
-                if (content.includes(whitelistItem) || whitelistItem.includes(content)) {
+                // 只有脱敏内容包含白名单项时，才跳过（单向包含）
+                if (content.includes(whitelistItem)) {
                     return true;
                 }
             }
