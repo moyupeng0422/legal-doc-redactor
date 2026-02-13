@@ -332,6 +332,18 @@
         </div>
     </div>
 
+    <!-- 冲突提示弹窗 -->
+    <div class="modal" id="conflictModal">
+        <div class="modal-content" style="max-width:400px;">
+            <h3>⚠️ 检测到内容冲突</h3>
+            <p style="color:#d9534f; margin:15px 0;" id="conflictMessage"></p>
+            <p style="color:#666; font-size:14px;">请先从原有列表中删除该项后，再添加到新列表。</p>
+            <div style="text-align:right; margin-top:20px;">
+                <button class="btn btn-primary" onclick="app.closeConflictModal()">我知道了</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // ==================== 白名单/黑名单管理 ====================
         const LISTS = {
@@ -385,8 +397,14 @@
                 const data = localStorage.getItem('redaction_customTypes');
                 if (data) {
                     const parsed = JSON.parse(data);
-                    // 将JSON对象转换为Map，每个值从数组转换为Set
-                    LISTS.customTypes = new Map(Object.entries(parsed).map(([k, v]) => [k, new Set(v)]));
+                    // 将JSON对象转换为Map，保持原有顺序
+                    // 使用 forEach 和.entries 确保遍历顺序一致
+                    const entries = [];
+                    Object.entries(parsed).forEach(([k, v]) => {
+                        // 将数组转为 Set，保持原有顺序
+                        entries.push([k, new Set(v)]);
+                    });
+                    LISTS.customTypes = new Map(entries);
                 }
                 console.log('自定义类型已加载:', [...LISTS.customTypes.keys()]);
                 // 初始化类型选择器
@@ -400,9 +418,13 @@
         var saveCustomTypes = function() {
             try {
                 // 将Map转换为JSON对象，Set转换为数组
+                // 使用 forEach 和.entries 确保遍历顺序一致
                 const obj = {};
                 LISTS.customTypes.forEach((value, key) => {
-                    obj[key] = [...value];
+                    // 将Set转为数组，保持原有顺序
+                    const arr = [];
+                    value.forEach(item => arr.push(item));
+                    obj[key] = arr;
                 });
                 localStorage.setItem('redaction_customTypes', JSON.stringify(obj));
                 console.log('自定义类型已保存');
@@ -420,7 +442,8 @@
             const existingCustom = selector.querySelectorAll('.type-option[data-type^="custom-"]');
             existingCustom.forEach(el => el.remove());
 
-            // 如果没有自定义类型，直接返回
+            // 检查是否有自定义类型（包括空的类型）
+            // 空类型也应该保留，只有用户主动删除时才移除
             if (LISTS.customTypes.size === 0) return;
 
             // 找到"自定义类型"分组标题
@@ -462,8 +485,50 @@
             return LISTS.blacklist.has(value);
         }
 
+        // 检查内容是否被白名单中的任何项覆盖（用于优先级：白名单 > 脱敏类别）
+        function isCoveredByWhitelist(content) {
+            for (const whitelistItem of LISTS.whitelist) {
+                // 如果脱敏内容包含白名单项，或白名单项包含脱敏内容，则被覆盖
+                if (content.includes(whitelistItem) || whitelistItem.includes(content)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // 添加到白名单
-        function addToWhitelist(value) {
+        function addToWhitelist(value, forceMove = false) {
+            // 如果是迁移模式，先从其他列表中删除
+            if (forceMove) {
+                // 从黑名单删除
+                const blacklistItem = [...LISTS.blacklist].find(item =>
+                    (typeof item === 'string' ? item : item.original) === value
+                );
+                if (blacklistItem) {
+                    LISTS.blacklist.delete(blacklistItem);
+                    saveLists();
+                }
+
+                // 从所有自定义类型中删除指定项
+                // 只有当类型变为空时才删除整个类型，否则只更新类型
+                for (const [typeName, items] of LISTS.customTypes) {
+                    const item = [...items].find(i => i.original === value);
+                    if (item) {
+                        items.delete(item);
+                    }
+                }
+                // 统一更新 Map（保留空类型，只删除非空的）
+                LISTS.customTypes.forEach((items, typeName) => {
+                    if (items.size === 0) {
+                        LISTS.customTypes.delete(typeName);
+                    } else {
+                        LISTS.customTypes.set(typeName, items);
+                    }
+                });
+                saveCustomTypes();
+            }
+
+            // 正常添加（此时原列表已清理，不会冲突）
             LISTS.whitelist.add(value);
             saveLists();
         }
@@ -518,7 +583,7 @@
                 { category: "patent_code", patterns: ["(?:专利|商标|著作权)申请号\\s*[：:]\\s*([A-Z0-9\\.]+)", "(?:JP|US|EP|CN|WO|KR|GB|DE|FR|CA|AU)(?:\\d{4,}|\\d{4}/\\d{6})[A-Z]\\d?", "[A-Z]{2}\\d{6,}[A-Z]{0,2}\\d?"], useCaptureGroup: true, replacement: "【代码-专利申请号${index}】" },
                 { category: "file_code", patterns: ["合同编号\\s*[：:]\\s*([A-Z0-9\\-]+)", "文件编号\\s*[：:]\\s*([A-Z0-9\\-]+)", "文件号\\s*[：:]\\s*([A-Z0-9\\-]+)" ], useCaptureGroup: true, replacement: "【代码-文件编号${index}】" },
                 { category: "case_number", patterns: ["([（(]\\d{4}[)）][^民刑行知赔]{1,6}?(?:民|刑|行|知|赔)[^初终再监执字第]{0,5}?\\d+[号])(?:[，。、,;．.？])?", "(\\(\\d{4}\\)[^\"]{2,8}?\\d+号)(?:[，。、,;．.？])?", "(（\\d{4}）[^\"]{2,8}?\\d+号)(?:[，。、,;．.？])?", "(\\d{4}年（[A-Z]{1,5}）第\\d+号)(?:[，。、,;．.？])?", "(Case No\\.(?:\\s+[\\d:]+-cv-)?\\d+)(?:[，。、,;．.？])?", "((?:Civil Action) No\\.\\s+[\\d:]+-cv-\\d+)(?:[，。、,;．.？])?", "(\\[\\d{4}\\]\\s+[A-Z]{1,4}\\s+\\d+\\s+\\([A-Z]+\\))(?:[，。、,;．.？])?", "(Az\\.:\\s+\\d+[A-Z]?\\s+\\d+/\\d{2,4})(?:[，。、,;．.？])?", "(RG\\s+\\d+/\\d+)(?:[，。、,;．.？])?"], useCaptureGroup: true, replacement: "【案号${index}】" },
-                { category: "project_name", patterns: ["([\\u4e00-\\u9fa5]{2,10})(项目|工程|系统|平台|计划)", "([\\u4e00-\\u9fa5]{2,10})(研发|建设|实施)项目"], replacement: "【项目${index}】" },
+                { category: "project_name", patterns: ["(?<!甲方|乙方|丙方|丁方|买方|卖方|委托方|受托方|发包方|承包方|采购方|供应商)([\\u4e00-\\u9fa5]{2,10})(项目|工程|系统|平台|计划)", "([\\u4e00-\\u9fa5]{2,10})(研发|建设|实施)项目"], replacement: "【项目${index}】" },
                 { category: "address", patterns: ["(?:地址|住所|住址|注册地址|办公地址|住所地)\\s*[：:]\\s*([\\u4e00-\\u9fa5\\w\\d\\u3000]+)", "([\\u4e00-\\u9fa5]{2,4}市[\\u4e00-\\u9fa5]{1,4}区[\\u4e00-\\u9fa5\\d]+(?:路|街|道|大道)(?:\\d+|[\\u4e00-\\u9fa5]+)楼\\d{1,4}-\\d{1,4})"], useCaptureGroup: true, replacement: "【地址${index}】" },
                 { category: "sensitive", patterns: [], replacement: "【敏感信息${index}】" }
             ]
@@ -991,10 +1056,10 @@
                                 continue;
                             }
 
-                            // 检查是否在白名单中（所有类型通用）
-                            if (isInWhitelist(original)) {
+                            // 检查是否被白名单覆盖（白名单优先级高于脱敏类别）
+                            if (isCoveredByWhitelist(original)) {
                                 if (this.debugMode) {
-                                    this.debugLog(`    ✗ 跳过: "${original}" 在白名单中`);
+                                    this.debugLog(`    ✗ 跳过: "${original}" 被白名单覆盖`);
                                 }
                                 continue;
                             }
@@ -1144,6 +1209,24 @@
                         }
                         for (const item of items) {
                             const original = item.original;
+
+                            // 检查是否在黑名单中（黑名单优先级最高）
+                            const inBlacklist = [...LISTS.blacklist].some(b => b.original === original);
+                            if (inBlacklist) {
+                                if (this.debugMode) {
+                                    this.debugLog(`  - 跳过: "${original}" 在黑名单中（黑名单优先）`);
+                                }
+                                continue;
+                            }
+
+                            // 检查是否被白名单覆盖（白名单优先级高于自定义类型）
+                            if (isCoveredByWhitelist(original)) {
+                                if (this.debugMode) {
+                                    this.debugLog(`  - 跳过: "${original}" 被白名单覆盖`);
+                                }
+                                continue;
+                            }
+
                             // 检查是否在全文中
                             const index = fullText.indexOf(original);
                             if (index !== -1) {
@@ -1171,9 +1254,43 @@
                 }
 
                 this.updateStats();
+                this.render(); // 确保统计数据更新
             }
 
             isDuplicate(original) { return this.redactions.some(r => r.original === original); }
+
+            // 检查内容是否在其他列表中存在（防止冲突）
+            checkConflict(content, targetListType, targetTypeName = null) {
+                // targetListType: 'whitelist' | 'blacklist' | 'custom'
+                // targetTypeName: 自定义类型名称（当 targetListType === 'custom' 时）
+                const conflicts = [];
+
+                // 检查白名单
+                if (targetListType !== 'whitelist' && LISTS.whitelist.has(content)) {
+                    conflicts.push({ list: '白名单', content });
+                }
+
+                // 检查黑名单
+                if (targetListType !== 'blacklist' && LISTS.blacklist.has(content)) {
+                    conflicts.push({ list: '黑名单', content });
+                }
+
+                // 检查自定义类型
+                for (const [typeName, items] of LISTS.customTypes) {
+                    const existingItem = [...items].find(item => item.original === content);
+                    if (existingItem) {
+                        if (targetListType === 'custom' && typeName === targetTypeName) {
+                            // 同一类型内重复
+                            conflicts.push({ list: `自定义类型「${typeName}」`, content, sameType: true });
+                        } else if (targetListType !== 'custom' || typeName !== targetTypeName) {
+                            // 跨类型冲突
+                            conflicts.push({ list: `自定义类型「${typeName}」`, content });
+                        }
+                    }
+                }
+
+                return conflicts;
+            }
 
             render() {
                 const container = document.getElementById('originalPreview');
@@ -1302,6 +1419,7 @@
                         console.log('✓ 没有重复ID - 所有span ID唯一');
                     }
                 }, 100);
+
             }
 
             setupScrollSync(el1, el2) {
@@ -1388,10 +1506,29 @@
                 const r = this.redactions.find(x => x.id === id);
                 if (!r) return;
 
-                // 询问是否加入白名单
-                const confirmed = confirm(`"${r.original}" 已从脱敏列表移除\n\n是否同时添加到白名单？\n以后遇到相同内容将不再脱敏`);
-                if (confirmed) {
-                    addToWhitelist(r.original);
+                // 检查是否在黑名单中（黑名单存储的是对象 {original, type}）
+                const inBlacklist = [...LISTS.blacklist].some(item => item.original === r.original);
+
+                // 检查是否在自定义类型中
+                let inCustomType = null;
+                for (const [typeName, items] of LISTS.customTypes) {
+                    if ([...items].some(item => item.original === r.original)) {
+                        inCustomType = typeName;
+                        break;
+                    }
+                }
+
+                // 如果在黑名单或自定义类型中，显示警告
+                if (inBlacklist || inCustomType) {
+                    const listName = inBlacklist ? '黑名单' : `自定义类型「${inCustomType}」`;
+                    alert(`⚠️ 无法直接添加到白名单\n\n"${r.original}" 存在于${listName}中。\n\n请先从${listName}中手动删除该内容，然后再添加到白名单。`);
+                } else {
+                    // 不在黑名单/自定义类型中，询问是否加入白名单
+                    const confirmed = confirm(`"${r.original}" 已从脱敏列表移除\n\n是否同时添加到白名单？\n以后遇到相同内容将不再脱敏`);
+                    if (confirmed) {
+                        // 使用迁移模式：先从原列表删除，再添加到白名单
+                        addToWhitelist(r.original, true);
+                    }
                 }
 
                 this.redactions = this.redactions.filter(x => x.id !== id);
@@ -1407,11 +1544,39 @@
                 }
             }
             hideAddModal() { document.getElementById('addModal').classList.remove('show'); }
+
+            // 显示冲突弹窗
+            showConflictModal(item, conflicts) {
+                const modal = document.getElementById('conflictModal');
+                const messageEl = document.getElementById('conflictMessage');
+
+                // 构建冲突消息
+                let message = `「${item}」已存在于以下列表中：\n\n`;
+                conflicts.forEach(c => {
+                    message += `• ${c.list}\n`;
+                });
+                messageEl.innerText = message;
+
+                modal.classList.add('show');
+            }
+
+            // 关闭冲突弹窗
+            closeConflictModal() {
+                document.getElementById('conflictModal').classList.remove('show');
+            }
+
             addManualRedaction() {
                 const original = document.getElementById('manualOriginal').value.trim();
                 const selected = document.querySelector('.type-option.selected');
                 if (!original) { alert('请输入原文'); return; }
                 if (!selected) { alert('请选择类型'); return; }
+
+                // 检查是否在白名单中
+                if (LISTS.whitelist.has(original)) {
+                    alert(`⚠️ 无法添加脱敏项\n\n"${original}" 存在于白名单中。\n\n白名单内容不会被脱敏，如需脱敏请先从白名单中删除该内容。`);
+                    return;
+                }
+
                 const type = selected.dataset.type;
                 this.typeCounters[type] = (this.typeCounters[type] || 0) + 1;
                 // 处理自定义类型的类型名称
@@ -1419,8 +1584,19 @@
                 const replacement = prompt('替换文本（留空自动生成）') || `【${typeName}${this.typeCounters[type]}】`;
                 this.redactions.push({ id: Date.now(), original, replacement, type, location: '手动添加' });
 
-                // 只对默认类型询问是否加入黑名单，自定义类型跳过
-                if (!type.startsWith('custom-')) {
+                // 根据类型选择，执行不同操作
+                if (type.startsWith('custom-')) {
+                    // 自定义类型：添加到对应的自定义类型中
+                    const customTypeName = type.replace('custom-', '');
+                    if (!LISTS.customTypes.has(customTypeName)) {
+                        LISTS.customTypes.set(customTypeName, new Set());
+                    }
+                    const items = LISTS.customTypes.get(customTypeName) || new Set();
+                    items.add({ original, id: Date.now() + Math.random() });
+                    LISTS.customTypes.set(customTypeName, items);
+                    saveCustomTypes();
+                } else {
+                    // 默认类型：询问是否加入黑名单
                     const confirmed = confirm(`"${original}" 已添加到脱敏列表\n\n是否同时添加到黑名单？\n以后遇到相同内容将自动脱敏`);
                     if (confirmed) {
                         addToBlacklist(original, type);  // 传递类型参数
@@ -1524,21 +1700,35 @@
             addToWhitelistFromUI() {
                 const input = document.getElementById('whitelistInput');
                 const value = input.value.trim();
-                if (value) {
-                    addToWhitelist(value);
-                    input.value = '';
-                    this.renderLists();
+                if (!value) return;
+
+                // 检查冲突
+                const conflicts = this.checkConflict(value, 'whitelist');
+                if (conflicts.length > 0) {
+                    this.showConflictModal(value, conflicts);
+                    return;
                 }
+
+                addToWhitelist(value);
+                input.value = '';
+                this.renderLists();
             }
 
             addToBlacklistFromUI() {
                 const input = document.getElementById('blacklistInput');
                 const value = input.value.trim();
-                if (value) {
-                    addToBlacklist(value);
-                    input.value = '';
-                    this.renderLists();
+                if (!value) return;
+
+                // 检查冲突
+                const conflicts = this.checkConflict(value, 'blacklist');
+                if (conflicts.length > 0) {
+                    this.showConflictModal(value, conflicts);
+                    return;
                 }
+
+                addToBlacklist(value);
+                input.value = '';
+                this.renderLists();
             }
 
             removeFromWhitelistUI(item) {
@@ -1560,6 +1750,14 @@
 
             hideCustomTypeModal() {
                 document.getElementById('customTypeModal').classList.remove('show');
+
+                // 先关闭其他可能打开的弹窗（如"手动添加脱敏项"），避免遮挡更新的预览
+                this.hideAddModal();
+                this.hideExportModal();
+                this.hideListModal();
+
+                // 然后触发重新识别，确保预览同步更新
+                this.identifyRedactions();
             }
 
             renderCustomTypesList() {
@@ -1639,11 +1837,30 @@
 
                 // 解析新输入的行
                 const lines = content.split('\n').map(l => l.trim()).filter(l => l);
-                let addedCount = 0;
                 const now = Date.now();
 
+                // 检查每个新项是否有冲突
+                const conflicts = [];
+                for (const line of lines) {
+                    const itemConflicts = this.checkConflict(line, 'custom', currentEditingType);
+                    if (itemConflicts.length > 0) {
+                        conflicts.push({ item: line, conflicts: itemConflicts });
+                    }
+                }
+
+                if (conflicts.length > 0) {
+                    // 显示冲突信息
+                    let message = '以下内容已存在于其他列表中，无法添加：\n\n';
+                    conflicts.forEach(c => {
+                        message += `• 「${c.item}」→ ${c.conflicts.map(x => x.list).join('、')}\n`;
+                    });
+                    alert(message);
+                    return; // 阻止保存
+                }
+
+                let addedCount = 0;
                 lines.forEach(line => {
-                    // 检查是否已存在
+                    // 检查是否已存在（在同一类型内）
                     const exists = [...newItems].some(item => item.original === line);
                     if (!exists) {
                         newItems.add({ original: line, id: now + Math.random() });
@@ -1662,6 +1879,9 @@
 
                 // 清空textarea供下次输入
                 textarea.value = '';
+
+                // 触发联动更新：重新识别所有脱敏项（包括自定义类型）
+                this.identifyRedactions();
             }
 
             deleteTypeItem(itemId) {
@@ -1675,6 +1895,9 @@
                 saveCustomTypes();
                 this.renderCustomTypesList();
                 this.selectTypeForEdit(currentEditingType);
+
+                // 触发联动更新：重新识别所有脱敏项（包括自定义类型）
+                this.identifyRedactions();
             }
 
             deleteCustomType(typeName) {

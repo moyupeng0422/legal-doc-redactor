@@ -343,6 +343,16 @@ python restore.py <redacted.docx> <mapping.md> [-o restored.docx]
 
 ## 6. localStorage格式
 
+### 优先级机制
+
+**优先级顺序**：黑名单（最高）> 白名单 > 脱敏类别（内置+自定义）
+
+| 优先级 | 类型 | 说明 |
+|--------|------|------|
+| 1（最高） | 黑名单 | 强制脱敏，不受白名单限制 |
+| 2 | 白名单 | 覆盖检查（包含关系），优先于脱敏类别 |
+| 3（最低） | 脱敏类别 | 内置规则 + 自定义类型 |
+
 ### 白名单数据（redaction_whitelist）
 
 **存储位置**: `localStorage.redaction_whitelist`
@@ -351,8 +361,10 @@ python restore.py <redacted.docx> <mapping.md> [-o restored.docx]
 
 **示例**:
 ```json
-["示例公司A", "2024年3月15日", "公开邮箱@example.com"]
+["示例公司A", "2024年3月15日", "公开邮箱@example.com", "计划"]
 ```
+
+**覆盖检查**: 白名单采用包含关系检查，如白名单有"计划"，则"股权激励计划"不被识别。
 
 **JavaScript操作**:
 ```javascript
@@ -362,36 +374,89 @@ const whitelist = JSON.parse(localStorage.getItem('redaction_whitelist') || '[]'
 // 写入
 localStorage.setItem('redaction_whitelist', JSON.stringify([...whitelist, '新项']));
 
-// 检查
-const isInWhitelist = whitelist.includes('待检查内容');
+// 覆盖检查（检查内容是否包含白名单中的任何一项）
+function isCoveredByWhitelist(content) {
+    for (const item of whitelist) {
+        if (content.includes(item) || item.includes(content)) {
+            return true;
+        }
+    }
+    return false;
+}
 ```
 
 ### 黑名单数据（redaction_blacklist）
 
 **存储位置**: `localStorage.redaction_blacklist`
 
-**数据格式**: JSON数组字符串
+**数据格式**: JSON数组字符串（对象格式，v1.1.0+）
 
 **示例**:
 ```json
-["内部项目代号", "特殊代码格式", "内部术语"]
+[
+  {"original": "内部项目代号", "type": "project_name"},
+  {"original": "特殊代码格式", "type": "file_code"},
+  {"original": "内部术语", "type": "sensitive"}
+]
 ```
+
+**兼容性**: 自动兼容旧版字符串格式 `["内部项目代号", "特殊代码格式"]`
 
 **JavaScript操作**:
 ```javascript
 // 读取
 const blacklist = JSON.parse(localStorage.getItem('redaction_blacklist') || '[]');
 
-// 写入
-localStorage.setItem('redaction_blacklist', JSON.stringify([...blacklist, '新项']));
+// 添加（对象格式）
+blacklist.push({ original: '新项', type: 'organization' });
+localStorage.setItem('redaction_blacklist', JSON.stringify(blacklist));
 
-// 检查
-const isInBlacklist = blacklist.includes('待检查内容');
+// 检查（遍历对象数组）
+const inBlacklist = blacklist.some(item =>
+    (typeof item === 'string' ? item : item.original) === '待检查内容'
+);
+```
+
+### 自定义类型数据（redaction_customTypes）
+
+**存储位置**: `localStorage.redaction_customTypes`
+
+**数据格式**: JSON对象，键为类型名称，值为项目数组
+
+**示例**:
+```json
+{
+  "合同名称": [
+    {"original": "技术服务合同", "id": 1736789123456},
+    {"original": "软件开发协议", "id": 1736789123457}
+  ],
+  "产品型号": [
+    {"original": "ABC-100", "id": 1736789123458},
+    {"original": "XYZ-200", "id": 1736789123459}
+  ]
+}
+```
+
+**JavaScript操作**:
+```javascript
+// 读取
+const customTypes = JSON.parse(localStorage.getItem('redaction_customTypes') || '{}');
+
+// 添加类型
+if (!customTypes['新类型']) {
+    customTypes['新类型'] = [];
+}
+customTypes['新类型'].push({ original: '内容', id: Date.now() });
+localStorage.setItem('redaction_customTypes', JSON.stringify(customTypes));
+
+// 删除类型
+delete customTypes['类型名'];
+localStorage.setItem('redaction_customTypes', JSON.stringify(customTypes));
 ```
 
 ### 数据共享
 
-白名单/黑名单数据在所有使用该工具的文件间共享，保持一致性。
+白名单/黑名单/自定义类型数据在所有使用该工具的文件间共享，保持一致性。
 
 ## 7. 调试日志格式
 
