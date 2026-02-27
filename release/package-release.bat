@@ -6,7 +6,7 @@ echo   法律文件脱敏工具 - 自动打包脚本
 echo ========================================
 echo.
 
-set VERSION=1.1.0
+set VERSION=1.3.0
 set PROJECT_ROOT=..
 set RELEASE_DIR=output\legal-doc-redactor-v%VERSION%
 set ZIP_NAME=legal-doc-redactor-v%VERSION%.zip
@@ -20,6 +20,7 @@ echo [1/5] 复制核心文件...
 copy "%PROJECT_ROOT%\assets\index.html" "%RELEASE_DIR%\" >nul
 copy "%PROJECT_ROOT%\assets\mammoth.browser.min.js" "%RELEASE_DIR%\" >nul
 copy "%PROJECT_ROOT%\assets\docx-v7.js" "%RELEASE_DIR%\" >nul
+copy "%PROJECT_ROOT%\assets\jszip.min.js" "%RELEASE_DIR%\" >nul
 copy "%PROJECT_ROOT%\data\default-rules.json" "%RELEASE_DIR%\" >nul
 
 echo [2/5] 复制使用说明...

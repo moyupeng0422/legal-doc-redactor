@@ -6,6 +6,7 @@
     <title>法律文件脱敏处理工具</title>
     <script src="mammoth.browser.min.js"></script>
     <script src="jszip.min.js"></script>
+    <script src="xlsx.full.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; padding: 20px; }
@@ -143,7 +144,6 @@
                         <button class="btn btn-secondary" onclick="app.showAddModal()">➕ 手动添加</button>
                         <button class="btn btn-success" onclick="app.showExportModal()">📥 导出结果</button>
                         <button class="btn btn-secondary" onclick="app.showListModal()">📋 白名单/黑名单</button>
-                        <button class="btn btn-danger" onclick="app.reset()">🗑️ 重置</button>
                         <label style="margin-left:15px;display:inline-flex;align-items:center;cursor:pointer;">
                             <input type="checkbox" id="debugMode" onchange="app.toggleDebug()">
                             <span style="margin-left:5px;">🐛 启用调试模式</span>
@@ -249,6 +249,9 @@
             <div style="margin-top:15px;">
                 <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="exportDocx" checked> 📄 脱敏文件.docx</label>
                 <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="exportMapping" checked> 替换比对.md（用于还原）</label>
+                <hr style="border:none; border-top:1px solid #eee; margin:15px 0;">
+                <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="exportWhitelist"> 📋 白名单.xlsx（可导入）</label>
+                <label style="display:block; margin-bottom:10px;"><input type="checkbox" id="exportLibrary"> 📋 敏感词库.xlsx（可导入）</label>
             </div>
             <div style="text-align:right; margin-top:20px;">
                 <button class="btn btn-secondary" onclick="app.hideExportModal()">取消</button>
@@ -291,8 +294,105 @@
             </div>
 
             <div style="text-align:right; margin-top:20px; border-top:1px solid #ddd; padding-top:15px;">
+                <button class="btn btn-primary" onclick="app.showImportModal()">📥 导入词库</button>
                 <button class="btn btn-secondary" onclick="app.closeListModal()">关闭</button>
                 <button class="btn btn-success" onclick="app.saveAndCloseListModal()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 导入词库弹窗 -->
+    <div class="modal" id="importModal">
+        <div class="modal-content" style="max-width:700px; max-height:80vh; overflow-y:auto;">
+            <h3 style="margin-bottom:20px;">📥 导入词库</h3>
+
+            <!-- 标签页切换 -->
+            <div style="display:flex; border-bottom:2px solid #e9ecef; margin-bottom:20px;">
+                <div id="tabSensitive" onclick="app.switchImportTab('sensitive')"
+                     style="padding:12px 24px; cursor:pointer; border-bottom:2px solid #1e3c72; margin-bottom:-2px; font-weight:600; color:#1e3c72;">
+                    敏感词库
+                </div>
+                <div id="tabWhitelist" onclick="app.switchImportTab('whitelist')"
+                     style="padding:12px 24px; cursor:pointer; color:#6c757d;">
+                    白名单
+                </div>
+            </div>
+
+            <!-- 敏感词库面板 -->
+            <div id="panelSensitive">
+                <div class="form-group">
+                    <label>选择 Excel 文件 (.xlsx)</label>
+                    <input type="file" id="importFileInput" accept=".xlsx,.xls" style="margin-top:5px;">
+                    <p style="color:#6c757d; font-size:12px; margin-top:5px;">
+                        格式要求：A列为敏感词内容，B列为脱敏类型（如：人名、组织机构、商标名等）
+                    </p>
+                </div>
+
+                <div id="importPreview" style="display:none;">
+                    <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px;">
+                        <p><strong>文件名：</strong><span id="importFileName"></span></p>
+                        <p><strong>敏感词数量：</strong><span id="importCount"></span></p>
+                    </div>
+
+                    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                        <thead>
+                            <tr style="background:#f0f4ff;">
+                                <th style="padding:10px; border:1px solid #ddd; text-align:left;">敏感词</th>
+                                <th style="padding:10px; border:1px solid #ddd; text-align:left;">类型</th>
+                                <th style="padding:10px; border:1px solid #ddd; text-align:left;">导入目标</th>
+                            </tr>
+                        </thead>
+                        <tbody id="importPreviewBody"></tbody>
+                    </table>
+
+                    <div id="importConflicts" style="display:none; margin-top:15px; padding:10px; background:#fff3cd; border-radius:6px;">
+                        <p style="color:#856404; font-weight:500;">⚠️ 发现冲突：</p>
+                        <ul id="importConflictsList" style="margin:5px 0 0 20px; color:#856404;"></ul>
+                        <div style="margin-top:10px;">
+                            <label><input type="radio" name="conflictHandling" value="skip" checked> 跳过冲突项</label>
+                            <label style="margin-left:15px;"><input type="radio" name="conflictHandling" value="overwrite"> 覆盖冲突项</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 白名单面板 -->
+            <div id="panelWhitelist" style="display:none;">
+                <div class="form-group">
+                    <label>选择 Excel 文件 (.xlsx)</label>
+                    <input type="file" id="importWhitelistFileInput" accept=".xlsx,.xls" style="margin-top:5px;">
+                    <p style="color:#6c757d; font-size:12px; margin-top:5px;">
+                        格式要求：A列为白名单内容（每行一个）
+                    </p>
+                </div>
+
+                <div id="importWhitelistPreview" style="display:none;">
+                    <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px;">
+                        <p><strong>文件名：</strong><span id="importWhitelistFileName"></span></p>
+                        <p><strong>白名单数量：</strong><span id="importWhitelistCount"></span></p>
+                    </div>
+
+                    <div style="max-height:300px; overflow-y:auto; border:1px solid #ddd; border-radius:6px;">
+                        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                            <thead>
+                                <tr style="background:#f0fff0;">
+                                    <th style="padding:10px; border:1px solid #ddd; text-align:left;">内容</th>
+                                </tr>
+                            </thead>
+                            <tbody id="importWhitelistPreviewBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="importWhitelistConflicts" style="display:none; margin-top:15px; padding:10px; background:#fff3cd; border-radius:6px;">
+                        <p style="color:#856404; font-weight:500;">⚠️ 已存在项将被跳过：</p>
+                        <ul id="importWhitelistConflictsList" style="margin:5px 0 0 20px; color:#856404; max-height:80px; overflow-y:auto;"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align:right; margin-top:20px; border-top:1px solid #ddd; padding-top:15px;">
+                <button class="btn btn-secondary" onclick="app.hideImportModal()">取消</button>
+                <button class="btn btn-success" id="importConfirmBtn" onclick="app.executeImport()" disabled>确认导入</button>
             </div>
         </div>
     </div>
@@ -561,6 +661,24 @@
             if (existing) {
                 LISTS.blacklist.delete(existing);
                 saveLists();
+            }
+        }
+
+        // 添加到自定义类型（用于导入功能）
+        function addToCustomType(typeName, content) {
+            // 如果类型不存在，创建新类型
+            if (!LISTS.customTypes.has(typeName)) {
+                LISTS.customTypes.set(typeName, new Set());
+            }
+
+            // 获取已存在的项
+            const items = LISTS.customTypes.get(typeName);
+
+            // 检查是否已存在
+            const exists = [...items].some(item => item.original === content);
+            if (!exists) {
+                items.add({ original: content, id: Date.now() + Math.random() });
+                saveCustomTypes();
             }
         }
 
@@ -1631,7 +1749,102 @@
             exportResults() {
                 if (document.getElementById('exportDocx').checked) this.exportDocx();
                 if (document.getElementById('exportMapping').checked) this.exportMappingMD();
+                if (document.getElementById('exportWhitelist').checked) this.exportWhitelistExcel();
+                if (document.getElementById('exportLibrary').checked) this.exportLibraryExcel();
                 this.hideExportModal();
+            }
+
+            // 导出白名单为Excel
+            exportWhitelistExcel() {
+                if (LISTS.whitelist.size === 0) {
+                    alert('白名单为空，无法导出');
+                    return;
+                }
+
+                // 构建数据：标题行 + 内容
+                const data = [['内容']];
+                for (const item of LISTS.whitelist) {
+                    data.push([item]);
+                }
+
+                // 创建工作簿和工作表
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(data);
+
+                // 设置列宽
+                ws['!cols'] = [{ wch: 50 }];
+
+                XLSX.utils.book_append_sheet(wb, ws, '白名单');
+                const today = new Date().toISOString().split('T')[0];
+                XLSX.writeFile(wb, `白名单_${today}.xlsx`);
+            }
+
+            // 导出敏感词库（黑名单+自定义类型）为Excel
+            exportLibraryExcel() {
+                const totalItems = LISTS.blacklist.size + this.getCustomTypesCount();
+                if (totalItems === 0) {
+                    alert('敏感词库为空，无法导出');
+                    return;
+                }
+
+                // 类型映射：从typeKey到中文名称（与BUILTIN_TYPE_MAP保持一致）
+                const typeNames = {
+                    'person_name': '人名',
+                    'organization': '组织机构',
+                    'date': '日期',
+                    'price': '金额',
+                    'phone': '电话',
+                    'email': '邮箱',
+                    'id_card': '身份证号',
+                    'bank_account': '银行账号',
+                    'credit_code': '统一社会信用代码',
+                    'org_code': '组织机构代码',
+                    'patent_code': '专利申请号',
+                    'file_code': '文件编号',
+                    'case_number': '案号',
+                    'project_name': '项目名称',
+                    'address': '地址',
+                    'sensitive': '敏感信息',
+                    'blacklist': '黑名单'
+                };
+
+                // 构建数据：标题行 + 内容
+                const data = [['敏感词', '类型']];
+
+                // 添加黑名单内容
+                for (const item of LISTS.blacklist) {
+                    const original = typeof item === 'string' ? item : item.original;
+                    const typeKey = typeof item === 'string' ? 'blacklist' : item.type;
+                    const typeName = typeNames[typeKey] || typeKey;
+                    data.push([original, typeName]);
+                }
+
+                // 添加自定义类型内容
+                for (const [typeName, items] of LISTS.customTypes) {
+                    for (const item of items) {
+                        data.push([item.original, typeName]);
+                    }
+                }
+
+                // 创建工作簿和工作表
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.aoa_to_sheet(data);
+
+                // 设置列宽
+                ws['!cols'] = [{ wch: 40 }, { wch: 15 }];
+
+                XLSX.utils.book_append_sheet(wb, ws, '敏感词库');
+                const today = new Date().toISOString().split('T')[0];
+                XLSX.writeFile(wb, `敏感词库_${today}.xlsx`);
+            }
+
+            // 获取自定义类型总数
+            getCustomTypesCount() {
+                let count = 0;
+                for (const [, items] of LISTS.customTypes) {
+                    count += items.size;
+                }
+                return count;
             }
 
             // ==================== 白名单/黑名单管理方法 ====================
@@ -1652,6 +1865,423 @@
                 if (this.document) {
                     this.identifyRedactions();
                     this.render();
+                }
+            }
+
+            // ==================== 导入词库功能 ====================
+
+            // 内置类型映射（中文 → 英文key）
+            get BUILTIN_TYPE_MAP() {
+                return {
+                    '人名': 'person_name',
+                    '组织机构': 'organization',
+                    '公司': 'organization',
+                    '日期': 'date',
+                    '金额': 'price',
+                    '电话': 'phone',
+                    '邮箱': 'email',
+                    '身份证号': 'id_card',
+                    '银行账号': 'bank_account',
+                    '统一社会信用代码': 'credit_code',
+                    '组织机构代码': 'org_code',
+                    '专利申请号': 'patent_code',
+                    '文件编号': 'file_code',
+                    '案号': 'case_number',
+                    '项目名称': 'project_name',
+                    '项目': 'project_name',
+                    '地址': 'address',
+                    '敏感信息': 'sensitive'
+                };
+            }
+
+            showImportModal() {
+                document.getElementById('importModal').classList.add('show');
+                this.currentImportTab = 'sensitive';
+                this.switchImportTab('sensitive');
+
+                // 重置敏感词库面板
+                document.getElementById('importPreview').style.display = 'none';
+                document.getElementById('importFileInput').value = '';
+
+                // 重置白名单面板
+                document.getElementById('importWhitelistPreview').style.display = 'none';
+                document.getElementById('importWhitelistFileInput').value = '';
+
+                document.getElementById('importConfirmBtn').disabled = true;
+
+                // 绑定文件选择事件
+                document.getElementById('importFileInput').onchange = (e) => this.handleImportFile(e);
+                document.getElementById('importWhitelistFileInput').onchange = (e) => this.handleWhitelistImportFile(e);
+            }
+
+            hideImportModal() {
+                document.getElementById('importModal').classList.remove('show');
+                this.pendingImportItems = null;
+                this.pendingWhitelistItems = null;
+            }
+
+            // 标签页切换
+            switchImportTab(tab) {
+                this.currentImportTab = tab;
+
+                const tabSensitive = document.getElementById('tabSensitive');
+                const tabWhitelist = document.getElementById('tabWhitelist');
+                const panelSensitive = document.getElementById('panelSensitive');
+                const panelWhitelist = document.getElementById('panelWhitelist');
+
+                if (tab === 'sensitive') {
+                    tabSensitive.style.borderBottom = '2px solid #1e3c72';
+                    tabSensitive.style.marginBottom = '-2px';
+                    tabSensitive.style.fontWeight = '600';
+                    tabSensitive.style.color = '#1e3c72';
+                    tabWhitelist.style.borderBottom = '';
+                    tabWhitelist.style.marginBottom = '';
+                    tabWhitelist.style.fontWeight = '';
+                    tabWhitelist.style.color = '#6c757d';
+                    panelSensitive.style.display = 'block';
+                    panelWhitelist.style.display = 'none';
+                } else {
+                    tabWhitelist.style.borderBottom = '2px solid #1e3c72';
+                    tabWhitelist.style.marginBottom = '-2px';
+                    tabWhitelist.style.fontWeight = '600';
+                    tabWhitelist.style.color = '#1e3c72';
+                    tabSensitive.style.borderBottom = '';
+                    tabSensitive.style.marginBottom = '';
+                    tabSensitive.style.fontWeight = '';
+                    tabSensitive.style.color = '#6c757d';
+                    panelWhitelist.style.display = 'block';
+                    panelSensitive.style.display = 'none';
+                }
+
+                // 更新确认按钮状态
+                const confirmBtn = document.getElementById('importConfirmBtn');
+                if (tab === 'sensitive') {
+                    confirmBtn.disabled = !this.pendingImportItems || this.pendingImportItems.length === 0;
+                } else {
+                    confirmBtn.disabled = !this.pendingWhitelistItems || this.pendingWhitelistItems.length === 0;
+                }
+            }
+
+            // ==================== 导入白名单功能 ====================
+
+            handleWhitelistImportFile(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                this.parseWhitelistExcel(file).then(items => {
+                    this.pendingWhitelistItems = items;
+                    this.renderWhitelistImportPreview(items);
+                }).catch(err => {
+                    alert('解析文件失败: ' + err.message);
+                });
+            }
+
+            parseWhitelistExcel(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                            const items = [];
+                            for (let i = 0; i < rows.length; i++) {
+                                const content = String(rows[i][0] || '').trim();
+                                if (!content) continue;
+
+                                // 跳过标题行
+                                if (i === 0 && this.isWhitelistHeader(content)) continue;
+
+                                items.push(content);
+                            }
+                            resolve(items);
+                        } catch (err) {
+                            reject(new Error(err.message));
+                        }
+                    };
+                    reader.onerror = () => reject(new Error('读取文件失败'));
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            isWhitelistHeader(content) {
+                const headerKeywords = ['白名单', '内容', '关键词', '名称', '词语', 'content', 'keyword'];
+                return headerKeywords.some(k => content.toLowerCase().includes(k.toLowerCase()));
+            }
+
+            renderWhitelistImportPreview(items) {
+                document.getElementById('importWhitelistPreview').style.display = 'block';
+                document.getElementById('importWhitelistFileName').textContent = document.getElementById('importWhitelistFileInput').files[0]?.name || '';
+                document.getElementById('importWhitelistCount').textContent = items.length;
+                document.getElementById('importConfirmBtn').disabled = items.length === 0;
+
+                // 检测冲突
+                const conflicts = [];
+                for (const item of items) {
+                    if (LISTS.whitelist.has(item)) {
+                        conflicts.push(item);
+                    }
+                }
+
+                // 渲染预览表格
+                const tbody = document.getElementById('importWhitelistPreviewBody');
+                tbody.innerHTML = items.slice(0, 50).map(item => `
+                    <tr>
+                        <td style="padding:8px; border:1px solid #ddd;">${this.escapeHtml(item)}</td>
+                    </tr>
+                `).join('');
+
+                if (items.length > 50) {
+                    tbody.innerHTML += `<tr><td style="padding:8px; border:1px solid #ddd; color:#999; text-align:center;">... 还有 ${items.length - 50} 项</td></tr>`;
+                }
+
+                // 显示冲突
+                const conflictsDiv = document.getElementById('importWhitelistConflicts');
+                const conflictsList = document.getElementById('importWhitelistConflictsList');
+                if (conflicts.length > 0) {
+                    conflictsDiv.style.display = 'block';
+                    conflictsList.innerHTML = conflicts.slice(0, 10).map(c =>
+                        `<li>"${this.escapeHtml(c)}"</li>`
+                    ).join('');
+                    if (conflicts.length > 10) {
+                        conflictsList.innerHTML += `<li>... 还有 ${conflicts.length - 10} 项</li>`;
+                    }
+                } else {
+                    conflictsDiv.style.display = 'none';
+                }
+            }
+
+            executeWhitelistImport() {
+                if (!this.pendingWhitelistItems || this.pendingWhitelistItems.length === 0) return;
+
+                let imported = 0, skipped = 0;
+
+                for (const item of this.pendingWhitelistItems) {
+                    if (LISTS.whitelist.has(item)) {
+                        skipped++;
+                        continue;
+                    }
+                    LISTS.whitelist.add(item);
+                    imported++;
+                }
+
+                saveLists();
+                this.renderLists();
+
+                this.hideImportModal();
+                alert(`导入完成！\n\n成功导入: ${imported} 项\n跳过已存在: ${skipped} 项`);
+
+                // 如果有文档加载，重新识别
+                if (this.document) {
+                    this.identifyRedactions();
+                    this.render();
+                }
+            }
+
+            handleImportFile(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                this.parseLibraryExcel(file).then(items => {
+                    this.pendingImportItems = items;
+                    this.renderImportPreview(items);
+                }).catch(err => {
+                    alert('解析文件失败: ' + err.message);
+                });
+            }
+
+            parseLibraryExcel(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                            const items = [];
+                            for (let i = 0; i < rows.length; i++) {
+                                const row = rows[i];
+                                if (!row[0]) continue;
+
+                                const content = String(row[0]).trim();
+                                const typeName = String(row[1] || '').trim();
+
+                                // 跳过标题行
+                                if (i === 0 && this.isHeaderRow(content, typeName)) continue;
+
+                                // 判断是内置类型还是自定义类型
+                                const builtinKey = this.BUILTIN_TYPE_MAP[typeName];
+                                if (builtinKey) {
+                                    items.push({
+                                        content,
+                                        typeName,
+                                        typeKey: builtinKey,
+                                        mode: 'blacklist'
+                                    });
+                                } else {
+                                    items.push({
+                                        content,
+                                        typeName,
+                                        typeKey: null,
+                                        mode: 'custom_type'
+                                    });
+                                }
+                            }
+                            resolve(items);
+                        } catch (err) {
+                            reject(new Error(err.message));
+                        }
+                    };
+                    reader.onerror = () => reject(new Error('读取文件失败'));
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            isHeaderRow(col1, col2) {
+                const headerKeywords = ['敏感词', '内容', '类型', '类别', '名称', '关键词'];
+                return headerKeywords.some(k => col1.includes(k) || col2.includes(k));
+            }
+
+            renderImportPreview(items) {
+                document.getElementById('importPreview').style.display = 'block';
+                document.getElementById('importFileName').textContent = document.getElementById('importFileInput').files[0]?.name || '';
+                document.getElementById('importCount').textContent = items.length;
+                document.getElementById('importConfirmBtn').disabled = items.length === 0;
+
+                // 检测冲突
+                const conflicts = [];
+                for (const item of items) {
+                    const conflict = this.checkImportConflict(item.content);
+                    if (conflict) {
+                        conflicts.push({ content: item.content, conflict });
+                    }
+                }
+
+                // 渲染预览表格
+                const tbody = document.getElementById('importPreviewBody');
+                tbody.innerHTML = items.map(item => `
+                    <tr>
+                        <td style="padding:8px; border:1px solid #ddd;">${this.escapeHtml(item.content)}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">${this.escapeHtml(item.typeName)}</td>
+                        <td style="padding:8px; border:1px solid #ddd;">
+                            <span style="padding:2px 8px; border-radius:4px; font-size:11px; ${
+                                item.mode === 'blacklist'
+                                    ? 'background:#f8d7da; color:#721c24;'
+                                    : 'background:#d4edda; color:#155724;'
+                            }">${item.mode === 'blacklist' ? '黑名单' : '自定义类型'}</span>
+                        </td>
+                    </tr>
+                `).join('');
+
+                // 显示冲突
+                const conflictsDiv = document.getElementById('importConflicts');
+                const conflictsList = document.getElementById('importConflictsList');
+                if (conflicts.length > 0) {
+                    conflictsDiv.style.display = 'block';
+                    conflictsList.innerHTML = conflicts.map(c =>
+                        `<li>"${this.escapeHtml(c.content)}" 已存在于${c.conflict}</li>`
+                    ).join('');
+                } else {
+                    conflictsDiv.style.display = 'none';
+                }
+            }
+
+            checkImportConflict(content) {
+                // 检查白名单
+                if (LISTS.whitelist.has(content)) return '白名单';
+                // 检查黑名单
+                for (const item of LISTS.blacklist) {
+                    const original = typeof item === 'string' ? item : item.original;
+                    if (original === content) return '黑名单';
+                }
+                // 检查自定义类型
+                for (const [typeName, items] of LISTS.customTypes) {
+                    for (const item of items) {
+                        if (item.original === content) return `自定义类型「${typeName}」`;
+                    }
+                }
+                return null;
+            }
+
+            executeImport() {
+                if (this.currentImportTab === 'whitelist') {
+                    this.executeWhitelistImport();
+                } else {
+                    this.executeSensitiveImport();
+                }
+            }
+
+            executeSensitiveImport() {
+                if (!this.pendingImportItems || this.pendingImportItems.length === 0) return;
+
+                const conflictHandling = document.querySelector('input[name="conflictHandling"]:checked');
+                const skipConflicts = !conflictHandling || conflictHandling.value === 'skip';
+
+                let imported = 0, skipped = 0;
+
+                for (const item of this.pendingImportItems) {
+                    const conflict = this.checkImportConflict(item.content);
+
+                    if (conflict && skipConflicts) {
+                        skipped++;
+                        continue;
+                    }
+
+                    // 如果选择覆盖，先删除冲突项
+                    if (conflict && !skipConflicts) {
+                        this.removeItemFromAllLists(item.content);
+                    }
+
+                    if (item.mode === 'blacklist') {
+                        // 导入到黑名单
+                        addToBlacklist(item.content, item.typeKey);
+                    } else {
+                        // 导入到自定义类型
+                        addToCustomType(item.typeName, item.content);
+                    }
+                    imported++;
+                }
+
+                saveLists();
+                saveCustomTypes();
+                this.renderLists();
+                initTypeSelector();  // 更新类型选择器UI
+
+                this.hideImportModal();
+                alert(`导入完成！\n\n成功导入: ${imported} 项\n跳过冲突: ${skipped} 项`);
+
+                // 如果有文档加载，重新识别
+                if (this.document) {
+                    this.identifyRedactions();
+                    this.render();
+                }
+            }
+
+            removeItemFromAllLists(content) {
+                // 从白名单移除
+                LISTS.whitelist.delete(content);
+
+                // 从黑名单移除
+                for (const item of LISTS.blacklist) {
+                    const original = typeof item === 'string' ? item : item.original;
+                    if (original === content) {
+                        LISTS.blacklist.delete(item);
+                        break;
+                    }
+                }
+
+                // 从自定义类型移除
+                for (const [typeName, items] of LISTS.customTypes) {
+                    for (const item of items) {
+                        if (item.original === content) {
+                            items.delete(item);
+                            break;
+                        }
+                    }
                 }
             }
 
@@ -2646,8 +3276,8 @@
             }
         }
 
-        const app = new RedactionApp();
-        const restoreApp = new RestoreApp();
+        window.app = new RedactionApp();
+        window.restoreApp = new RestoreApp();
     </script>
 </body>
 </html>
