@@ -329,7 +329,7 @@
     <div class="container">
         <div class="header">
             <h1>法律文件脱敏处理工具</h1>
-            <p>使用指南 v1.2.0</p>
+            <p>使用指南 v1.4.0</p>
             <span class="badge">完全离线 · 数据安全 · 零依赖</span>
         </div>
 
@@ -406,6 +406,10 @@
             <div class="section">
                 <h2 data-icon=""> 脱敏模式</h2>
 
+                <div class="info-box">
+                    <strong>批量模式：</strong>上传多个文件后自动进入批量模式，相同内容在不同文件中使用相同替换文本，确保一致性。
+                </div>
+
                 <h3>步骤 1：上传文件</h3>
                 <div class="step">
                     <span class="step-number">1</span>
@@ -473,13 +477,29 @@
                     </div>
                 </div>
 
-                <h3>步骤 7：导出文件</h3>
+                <h3>步骤 7：规则设置（可选）</h3>
                 <div class="step">
                     <span class="step-number">7</span>
+                    <p>点击"⚙️ 规则设置"按钮自定义识别范围：</p>
+                    <ul>
+                        <li><strong>开启/关闭类别</strong> - 勾选或取消勾选16种内置脱敏类别</li>
+                        <li><strong>代码类分组联动</strong> - 4个代码子类任一启用，"代码"按钮就可用</li>
+                        <li><strong>设置持久化</strong> - 保存在浏览器本地，刷新页面后保持</li>
+                    </ul>
+                </div>
+
+                <h3>步骤 8：导出文件</h3>
+                <div class="step">
+                    <span class="step-number">8</span>
                     <ul>
                         <li>点击"导出"按钮，选择导出类型</li>
                         <li><strong>脱敏文件.docx</strong> - 保留原格式的脱敏文档</li>
-                        <li><strong>替换比对.md</strong> - <strong>务必保存</strong>，用于后续还原</li>
+                        <li><strong>{文件名}_比对.md</strong> - <strong>务必保存</strong>，用于后续还原</li>
+                    </ul>
+                    <p><strong>批量模式导出：</strong></p>
+                    <ul>
+                        <li>ZIP打包下载所有文件</li>
+                        <li>每个文件生成独立的比对文件，存放在 <code>比对文件/</code> 文件夹中</li>
                     </ul>
                 </div>
 
@@ -523,6 +543,27 @@
 
                 <div class="warning-box">
                     <strong>注意：</strong>还原时文档中的修订和批注会完整保留
+                </div>
+
+                <h3>批量还原（4步流程）</h3>
+                <div class="info-box" style="margin-top: 15px;">
+                    <strong>上传多个文件时自动进入批量还原模式</strong>
+                </div>
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <strong>上传文件</strong> - 上传多个脱敏稿 + 多个比对.md文件
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <strong>确认配对</strong> - 系统自动匹配文件名，支持手动调整配对关系
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <strong>执行还原</strong> - 点击"确认并执行还原"，显示进度条
+                </div>
+                <div class="step">
+                    <span class="step-number">4</span>
+                    <strong>下载结果</strong> - ZIP打包下载所有还原后的文件
                 </div>
             </div>
 
@@ -618,7 +659,7 @@
                 <p><strong>A:</strong> 比对词.md文件是还原的关键，无法重新生成。请务必妥善保存该文件。</p>
 
                 <h3>Q: 可以批量处理多个文件吗？</h3>
-                <p><strong>A:</strong> 当前版本一次只能处理一个文件。如需批量处理，请逐个文件进行脱敏。</p>
+                <p><strong>A:</strong> 可以。上传多个文件后自动进入批量模式，系统会统一编号确保相同内容使用相同替换文本。支持文件切换和同步编辑，导出时每个文件生成独立的比对文件。</p>
 
                 <h3>Q: 选中文本后没有自动弹出自定义窗口？</h3>
                 <p><strong>A:</strong> 请确保在"原文预览"区域选中文本，而不是"脱敏预览"区域。自定义功能仅在原文预览区可用。</p>
@@ -626,7 +667,7 @@
         </div>
 
         <div class="footer">
-            <p><strong>法律文件脱敏处理工具 v1.2.0</strong></p>
+            <p><strong>法律文件脱敏处理工具 v1.4.0</strong></p>
             <p>完全离线 · 数据不上传 · MIT License</p>
         </div>
     </div>
