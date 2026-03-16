@@ -4561,13 +4561,14 @@
 
             // 手动配对
             manualMatchPair(docxFileId, mappingFileId) {
-                const docxFile = this.desensitizedFiles.find(f => f.id === docxFileId);
-                const mappingFile = this.mappingFiles.find(f => f.id === mappingFileId);
+                // 使用 == 宽松比较，因为 HTML select value 返回字符串
+                const docxFile = this.desensitizedFiles.find(f => f.id == docxFileId);
+                const mappingFile = this.mappingFiles.find(f => f.id == mappingFileId);
 
                 if (!docxFile || !mappingFile) return;
 
                 // 检查是否已存在该docx的配对
-                const existingPairIndex = this.pairs.findIndex(p => p.docxFile.id === docxFileId);
+                const existingPairIndex = this.pairs.findIndex(p => p.docxFile.id == docxFileId);
                 if (existingPairIndex >= 0) {
                     // 移除旧配对，将旧mapping放回未匹配列表
                     const oldMapping = this.pairs[existingPairIndex].mappingFile;
@@ -4582,18 +4583,19 @@
                         mappingFile: mappingFile,
                         matchType: 'manual'
                     });
-                    this.unmatchedDocx = this.unmatchedDocx.filter(f => f.id !== docxFileId);
+                    this.unmatchedDocx = this.unmatchedDocx.filter(f => f.id != docxFileId);
                 }
 
                 // 从未匹配列表中移除mapping
-                this.unmatchedMapping = this.unmatchedMapping.filter(f => f.id !== mappingFileId);
+                this.unmatchedMapping = this.unmatchedMapping.filter(f => f.id != mappingFileId);
 
                 this.renderPairList();
             }
 
             // 移除配对
             removePair(docxFileId) {
-                const pairIndex = this.pairs.findIndex(p => p.docxFile.id === docxFileId);
+                // 使用 == 宽松比较，因为 HTML select value 返回字符串
+                const pairIndex = this.pairs.findIndex(p => p.docxFile.id == docxFileId);
                 if (pairIndex >= 0) {
                     const pair = this.pairs[pairIndex];
                     this.unmatchedDocx.push(pair.docxFile);
@@ -4605,18 +4607,18 @@
 
             // 移除脱敏稿
             removeDocxFile(fileId) {
-                this.desensitizedFiles = this.desensitizedFiles.filter(f => f.id !== fileId);
-                this.pairs = this.pairs.filter(p => p.docxFile.id !== fileId);
-                this.unmatchedDocx = this.unmatchedDocx.filter(f => f.id !== fileId);
+                this.desensitizedFiles = this.desensitizedFiles.filter(f => f.id != fileId);
+                this.pairs = this.pairs.filter(p => p.docxFile.id != fileId);
+                this.unmatchedDocx = this.unmatchedDocx.filter(f => f.id != fileId);
                 this.updateUploadAreaDisplay();
                 this.renderPairList();
             }
 
             // 移除比对文件
             removeMappingFile(fileId) {
-                this.mappingFiles = this.mappingFiles.filter(f => f.id !== fileId);
-                this.pairs = this.pairs.filter(p => p.mappingFile.id !== fileId);
-                this.unmatchedMapping = this.unmatchedMapping.filter(f => f.id !== fileId);
+                this.mappingFiles = this.mappingFiles.filter(f => f.id != fileId);
+                this.pairs = this.pairs.filter(p => p.mappingFile.id != fileId);
+                this.unmatchedMapping = this.unmatchedMapping.filter(f => f.id != fileId);
                 this.updateUploadAreaDisplay();
                 this.renderPairList();
             }
