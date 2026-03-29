@@ -329,7 +329,7 @@
     <div class="container">
         <div class="header">
             <h1>法律文件脱敏处理工具</h1>
-            <p>使用指南 v1.4.0</p>
+            <p>使用指南 v1.5.0</p>
             <span class="badge">完全离线 · 数据安全 · 零依赖</span>
         </div>
 
@@ -655,6 +655,18 @@
                 <h3>Q: 支持 Mac/Linux 吗？</h3>
                 <p><strong>A:</strong> 支持。所有系统都是双击 <code>index.html</code> 即可使用。</p>
 
+                <h3>Q: 如何使用右键菜单快速脱敏或还原？</h3>
+                <p><strong>A:</strong></p>
+                <p><strong>Windows：</strong>双击 <code>scripts/install_context_menu.bat</code> 安装后，右键 .docx 文件即可看到"用脱敏工具打开"、"一键脱敏"和"一键还原"。卸载运行 <code>uninstall_context_menu.bat</code>。</p>
+                <p><strong>macOS：</strong>⚠️ 此功能未经测试，可能无法正常工作。可尝试运行 <code>scripts/install_context_menu_mac.sh</code> 自动安装，或通过"自动操作"（Automator）手动创建 Quick Action：</p>
+                <ol>
+                    <li>打开"自动操作"应用 → 新建文稿 → 选择"快速操作"</li>
+                    <li>顶部设置："工作流程收到当前" → 没有输入 → 位于"访达程序"</li>
+                    <li>添加操作 → "运行 Shell 脚本"，Shell 选 <code>/bin/zsh</code>，传递输入选"作为自变量"</li>
+                    <li>输入：<code>python3 "脚本路径/context_menu_server.py" "$@"</code>（用脱敏工具打开）或 <code>python3 "脚本路径/quick_redact.py" "$@"</code>（一键脱敏）或 <code>python3 "脚本路径/quick_restore.py" "$@"</code>（一键还原）</li>
+                    <li>文件 → 存储，命名为对应名称</li>
+                </ol>
+
                 <h3>Q: 如果不小心删除了比对词.md文件怎么办？</h3>
                 <p><strong>A:</strong> 比对词.md文件是还原的关键，无法重新生成。请务必妥善保存该文件。</p>
 
@@ -667,7 +679,7 @@
         </div>
 
         <div class="footer">
-            <p><strong>法律文件脱敏处理工具 v1.4.0</strong></p>
+            <p><strong>法律文件脱敏处理工具 v1.5.0</strong></p>
             <p>完全离线 · 数据不上传 · MIT License</p>
         </div>
     </div>

@@ -45,6 +45,7 @@
 - **调试模式**：详细日志记录和导出，便于问题排查
 - **规则设置**：可自主开启/关闭内置脱敏类别，灵活控制识别范围
 - **格式保留**：完整保留原文档格式
+- **右键菜单集成**：Windows/macOS 右键 .docx 文件可直接脱敏
 
 ### 还原功能
 ![还原功能界面](screenshots/5.png)
@@ -147,11 +148,18 @@
 │   ├── workflow.md           # 工作流程
 │   ├── patterns.md           # 规则模式库
 │   └── data-formats.md       # 数据格式说明
-├── scripts/                  # Python脚本（可选）
+├── scripts/                  # Python脚本
 │   ├── README.md             # 脚本使用说明
 │   ├── requirements.txt      # 依赖列表
 │   ├── redact.py             # 脱敏脚本
-│   └── restore.py            # 还原脚本
+│   ├── restore.py            # 还原脚本
+│   ├── context_menu_server.py  # 右键菜单 HTTP 服务器
+│   ├── quick_redact.py       # 右键菜单一键脱敏
+│   ├── quick_restore.py      # 右键菜单一键还原
+│   ├── install_context_menu.bat      # Windows 右键菜单安装
+│   ├── uninstall_context_menu.bat    # Windows 右键菜单卸载
+│   ├── install_context_menu_mac.sh   # macOS 右键菜单安装
+│   └── uninstall_context_menu_mac.sh # macOS 右键菜单卸载
 └── assets/                   # HTML离线工具（主要）
     ├── README.md             # HTML使用说明
     └── index.html            # 主程序（完全离线）
@@ -189,12 +197,35 @@
 3. **保存比对文件**：替换比对.md是还原的必要条件，请妥善保存
 4. **浏览器兼容**：推荐使用 Chrome、Edge 等现代浏览器
 
+### 右键菜单快速脱敏（Windows / macOS）
+
+无需打开工具，直接右键 .docx 文件即可脱敏或还原：
+
+- **用脱敏工具打开** — 在浏览器中打开完整脱敏工具
+- **一键脱敏** — 后台直接处理，生成脱敏文件
+- **一键还原** — 自动查找比对文件，将脱敏稿还原为原文
+
+**Windows 安装：**
+1. 解压分发包
+2. 双击 `scripts/install_context_menu.bat`
+3. 右键 .docx 文件即可使用
+
+**macOS 安装：**
+1. 解压分发包
+2. 终端运行 `chmod +x scripts/install_context_menu_mac.sh && ./scripts/install_context_menu_mac.sh`
+3. Finder 中右键 .docx 文件 → 快速操作
+
+> ⚠️ macOS 右键菜单功能未经测试，可能无法正常工作。如不生效，可打开"自动操作"（Automator）手动创建 Quick Action：新建"快速操作" → 添加"运行 Shell 脚本" → 输入 `python3 "脚本路径" "$@"` → 存储
+
+**卸载：** 运行对应的 `uninstall` 脚本
+
 ## 许可证
 
 MIT License - 详见 [LICENSE](LICENSE)
 
 ## 版本历史
 
+- **v1.5.0** 右键菜单集成：Windows/macOS 右键快速脱敏、Python/HTML识别统一
 - **v1.4.0** 批量模式优化：独立比对文件、修复多项批量模式bug
 - **v1.3.1** 规则开关控制：可自主关闭某些内置脱敏类别
 - **v1.3.0** 导入导出词库：导入敏感词库、导入白名单、导出白名单、导出敏感词库

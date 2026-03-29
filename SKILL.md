@@ -96,6 +96,14 @@ python scripts/restore.py redacted.docx mapping.md -o restored.docx
 
 ## 版本历史
 
+- **v1.5.0（2026-03-29）右键菜单集成 + Python/HTML识别统一**：
+  - **Windows 右键菜单**：右键 .docx 文件可直接"用脱敏工具打开"、"一键脱敏"或"一键还原"，通过注册表集成，无需管理员权限
+  - **macOS 右键菜单**：通过 Automator Quick Action 实现，Finder 快速操作中调用 Python 脚本
+  - **一键还原**：自动查找比对文件（`_比对.md`/`_mapping.md`），复刻 HTML `restoreSingleFile()` 还原逻辑，每次替换后重建 runInfo
+  - **识别逻辑统一**：Python 一键脱敏与 HTML 应用识别结果完全一致（基于 `original` 去重/子串判断）
+  - **organization 边界检查**：防止"2025年上海XX有限公司"中年份后公司名被误识别
+  - **安装脚本优化**：Windows bat 使用 GBK 编码，修复路径引号嵌套和 `%%1` 延迟展开
+
 - **v1.4.0（2026-03-11）批量模式优化**：
   - **独立比对文件**：批量导出时每个文件生成独立的 `{文件名}_比对.md`，存放在 `比对文件/` 文件夹中
   - **批量模式一致性**：相同内容在不同文件中使用相同替换文本
